@@ -1,0 +1,174 @@
+import json
+from flask import current_app
+from extensions import db
+from models import Image, Tag, ReferenceImage
+from utils import process_image, remove_physical_file
+
+
+class ImageService:
+    @staticmethod
+    def create_image(file, data, ref_files=None):
+        """创建新作品记录"""
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+        web_path, thumb_path = process_image(file, upload_folder)
+
+        try:
+            image = Image(
+                title=data.get('title'),
+                author=data.get('author', '').strip(),
+                prompt=data.get('prompt'),
+                description=data.get('description', '').strip(),
+                type=data.get('type'),
+                file_path=web_path,
+                thumbnail_path=thumb_path,
+                status=data.get('status', 'pending')
+            )
+
+            if data.get('tags'):
+                ImageService._apply_tags(image, data.get('tags'))
+
+            db.session.add(image)
+            db.session.flush()
+
+            if image.type == 'img2img' and ref_files:
+                ImageService._process_refs(image, ref_files, start_pos=0)
+
+            db.session.commit()
+            return image
+
+        except Exception as e:
+            db.session.rollback()
+            remove_physical_file(web_path)
+            remove_physical_file(thumb_path)
+            raise e
+
+    @staticmethod
+    def update_image(image_id, data, new_main_file=None, new_ref_files=None, deleted_ref_ids=None):
+        """更新作品信息，包括文件替换和参考图管理"""
+        image = db.session.get(Image, image_id)
+        if not image:
+            raise ValueError("Image not found")
+
+        # 1. 更新基础信息
+        image.title = data.get('title')
+        image.author = data.get('author')
+        image.prompt = data.get('prompt')
+        image.description = data.get('description')
+        image.type = data.get('type')
+        image.status = data.get('status')
+
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+
+        # 2. 替换主图
+        if new_main_file and new_main_file.filename:
+            old_files = [image.file_path, image.thumbnail_path]
+            web_path, thumb_path = process_image(new_main_file, upload_folder)
+            image.file_path = web_path
+            image.thumbnail_path = thumb_path
+
+            for p in old_files:
+                remove_physical_file(p)
+
+        # 3. 更新标签
+        if 'tags' in data:
+            image.tags = []
+            ImageService._apply_tags(image, data['tags'])
+
+        # 4. 删除指定的参考图
+        if deleted_ref_ids:
+            for ref_id in deleted_ref_ids:
+                if not ref_id: continue
+                ref = db.session.get(ReferenceImage, int(ref_id))
+                if ref and ref.image_id == image.id:
+                    remove_physical_file(ref.file_path)
+                    db.session.delete(ref)
+            db.session.flush()
+
+        # 5. 处理参考图排序和新增
+        ref_layout_str = data.get('ref_layout')
+        if ref_layout_str:
+            try:
+                layout = json.loads(ref_layout_str)
+                new_file_iter = iter(new_ref_files or [])
+
+                for index, item_key in enumerate(layout):
+                    if item_key == 'new':
+                        try:
+                            f = next(new_file_iter)
+                            if f and f.filename:
+                                path, _ = process_image(f, upload_folder)
+                                ref = ReferenceImage(image_id=image.id, file_path=path, position=index)
+                                db.session.add(ref)
+                        except StopIteration:
+                            pass
+                    elif item_key.startswith('existing:'):
+                        ref_id = int(item_key.split(':')[1])
+                        ref = db.session.get(ReferenceImage, ref_id)
+                        if ref and ref.image_id == image.id:
+                            ref.position = index
+            except Exception as e:
+                current_app.logger.error(f"Layout parse error: {e}")
+        else:
+            # 降级处理：直接追加
+            max_pos = db.session.query(db.func.max(ReferenceImage.position)).filter_by(image_id=image.id).scalar() or 0
+            if new_ref_files:
+                ImageService._process_refs(image, new_ref_files, start_pos=max_pos + 1)
+
+        db.session.commit()
+        return image
+
+    @staticmethod
+    def delete_image(image_id):
+        """完全删除作品及其关联文件"""
+        image = db.session.get(Image, image_id)
+        if not image: return False
+
+        files_to_remove = [image.file_path, image.thumbnail_path]
+        files_to_remove.extend([r.file_path for r in image.refs])
+
+        tags = list(image.tags)
+
+        db.session.delete(image)
+        db.session.commit()
+
+        for p in files_to_remove:
+            remove_physical_file(p)
+
+        ImageService._clean_orphaned_tags(tags)
+        return True
+
+    # --- Helpers ---
+    @staticmethod
+    def _apply_tags(image, tags_str):
+        if not tags_str: return
+        tag_names = set(t.strip() for t in tags_str.replace('，', ',').split(',') if t.strip())
+        for name in tag_names:
+            tag = Tag.query.filter_by(name=name).first()
+            if not tag:
+                tag = Tag(name=name)
+                db.session.add(tag)
+            image.tags.append(tag)
+
+    @staticmethod
+    def _process_refs(image, files, start_pos=0):
+        upload_folder = current_app.config['UPLOAD_FOLDER']
+        for i, f in enumerate(files):
+            if f.filename:
+                try:
+                    path, _ = process_image(f, upload_folder)
+                    ref = ReferenceImage(image_id=image.id, file_path=path, position=start_pos + i)
+                    db.session.add(ref)
+                except:
+                    pass
+
+    @staticmethod
+    def _clean_orphaned_tags(tags):
+        if not tags: return
+        for tag in tags:
+            try:
+                t = db.session.get(Tag, tag.id)
+                if t and not t.images:
+                    db.session.delete(t)
+            except:
+                pass
+        db.session.commit()

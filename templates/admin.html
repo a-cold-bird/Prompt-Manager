@@ -1,0 +1,408 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard - Prompt Manager{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 1280px;">
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-end mb-5 animate-up">
+        <div>
+            <h2 class="fw-bold art-title mb-1">Control Center</h2>
+            <p class="text-secondary small mb-0 fw-medium ls-1 text-uppercase">
+                System Management & Moderation
+            </p>
+        </div>
+
+        <div class="d-flex align-items-center gap-3 mt-3 mt-md-0">
+             <button class="btn btn-white bg-white bg-opacity-60 border-0 shadow-sm rounded-pill px-4 py-2 fw-bold text-secondary transition-bg d-flex align-items-center"
+                     data-bs-toggle="modal" data-bs-target="#tagsModal">
+                <i class="bi bi-tags-fill me-2 text-primary opacity-75"></i>标签管理
+             </button>
+
+             <div class="d-flex align-items-center ps-1 pe-3 py-1 bg-white bg-opacity-60 shadow-sm rounded-pill">
+                 <div class="rounded-circle bg-secondary bg-opacity-10 d-flex align-items-center justify-content-center me-2"
+                      style="width: 32px; height: 32px;">
+                     <i class="bi bi-person-fill text-secondary"></i>
+                 </div>
+                 <span class="small fw-bold text-dark">{{ current_user.username }}</span>
+             </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-center mb-5 animate-up" style="animation-delay: 0.1s;">
+        <nav class="segmented-control shadow-sm bg-white bg-opacity-50 p-1">
+            <a href="{{ url_for('admin.dashboard', tab='pending') }}"
+               class="nav-link px-4 py-2 text-decoration-none {{ 'active' if active_tab == 'pending' else '' }}">
+                待审核
+                {% if pending_images|length > 0 %}
+                <span class="badge bg-danger ms-2 rounded-pill shadow-sm" style="transform: scale(0.9);">{{ pending_images|length }}</span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('admin.dashboard', tab='approved') }}"
+               class="nav-link px-4 py-2 text-decoration-none {{ 'active' if active_tab == 'approved' else '' }}">
+                已发布库
+            </a>
+            <a href="{{ url_for('admin.dashboard', tab='data-mgmt') }}"
+               class="nav-link px-4 py-2 text-decoration-none {{ 'active' if active_tab == 'data-mgmt' else '' }}">
+                系统设置
+            </a>
+        </nav>
+    </div>
+
+    <div class="tab-content animate-up" style="animation-delay: 0.2s;">
+
+        <div class="tab-pane fade {{ 'show active' if active_tab == 'pending' else '' }}">
+            {% if pending_images|length > 0 %}
+
+                <div class="d-flex justify-content-between align-items-center mb-4 px-2">
+                    <div class="text-secondary small fw-bold text-uppercase ls-1">
+                        Queue ({{ pending_images|length }})
+                    </div>
+                    <form action="{{ url_for('admin.approve_all') }}" method="POST" onsubmit="return confirm('确定要一次性通过所有 {{ pending_images|length }} 张作品吗？');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-success rounded-pill shadow-sm fw-bold py-2 px-4"
+                                style="background: linear-gradient(180deg, #34c759 0%, #30b753 100%); border: none;">
+                            <i class="bi bi-check2-all me-2"></i>一键全部通过
+                        </button>
+                    </form>
+                </div>
+
+                <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+                    {% for img in pending_images %}
+                    <div class="col">
+                        <div class="pending-gallery-card">
+                            <div class="pending-img-zone">
+                                <img src="{{ img.thumbnail_path or img.file_path }}" loading="lazy">
+                                <div class="position-absolute top-0 start-0 m-3">
+                                    <span class="badge bg-warning text-dark bg-opacity-75 backdrop-blur shadow-sm border border-white border-opacity-25">
+                                        Pending
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="p-4 d-flex flex-column flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h5 class="fw-bold mb-0 text-truncate pe-2">{{ img.title }}</h5>
+                                    <small class="text-muted fw-medium">{{ img.created_at.strftime('%H:%M') }}</small>
+                                </div>
+
+                                <div class="small text-secondary mb-3 d-flex align-items-center">
+                                    <i class="bi bi-person-circle me-2 opacity-50"></i>
+                                    {{ img.author or 'Anonymous' }}
+                                </div>
+
+                                <div class="bg-light bg-opacity-50 rounded-3 p-3 mb-4 flex-grow-1 border border-secondary border-opacity-5">
+                                    <p class="small text-secondary mb-0 text-clamp-3 font-monospace" style="font-size: 0.8rem; line-height: 1.6;">
+                                        {{ img.prompt or 'No prompt provided...' }}
+                                    </p>
+                                </div>
+
+                                <div class="d-flex align-items-center gap-2 mt-auto pt-3 border-top border-secondary border-opacity-10">
+                                    <form action="{{ url_for('admin.approve', img_id=img.id) }}" method="POST" class="flex-grow-1 m-0">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button class="btn btn-success w-100 rounded-pill shadow-sm fw-bold py-2"
+                                                style="background: linear-gradient(180deg, #34c759 0%, #30b753 100%); border: none;">
+                                            <i class="bi bi-check-lg me-1"></i> 通过
+                                        </button>
+                                    </form>
+
+                                    <a href="{{ url_for('admin.edit_image', img_id=img.id, next=request.full_path) }}"
+                                       class="btn-circle-icon bg-light text-secondary" title="编辑">
+                                        <i class="bi bi-pencil-fill" style="font-size: 0.9rem;"></i>
+                                    </a>
+
+                                    <form action="{{ url_for('admin.delete', img_id=img.id) }}" method="POST" class="m-0" onsubmit="return confirm('确定删除？')">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                        <button class="btn-circle-icon bg-light text-secondary hover-danger" title="删除">
+                                            <i class="bi bi-trash-fill" style="font-size: 0.9rem;"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-celebration text-center py-5 mt-4">
+                    <div class="mb-4 d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success rounded-circle breathing-icon" style="width: 100px; height: 100px;">
+                        <i class="bi bi-cup-hot-fill" style="font-size: 3.5rem;"></i>
+                    </div>
+                    <h3 class="fw-bold text-secondary mb-2">All Caught Up!</h3>
+                    <p class="text-muted">暂时没有待审核的作品，喝杯咖啡吧。</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="tab-pane fade {{ 'show active' if active_tab == 'approved' else '' }}">
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 px-2">
+                <div class="text-secondary small fw-bold text-uppercase ls-1">
+                    Library ({{ approved_pagination.total }})
+                </div>
+                <form action="{{ url_for('admin.dashboard') }}" method="get" class="position-relative flex-grow-1 flex-md-grow-0" style="min-width: 280px;">
+                    <input type="hidden" name="tab" value="approved">
+                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-secondary opacity-50"></i>
+                    <input type="text" name="q" value="{{ search_query }}"
+                           class="form-control input-glass py-2 ps-5"
+                           placeholder="Search title, prompt...">
+                </form>
+            </div>
+
+            <div class="admin-list-container">
+                {% for img in approved_pagination.items %}
+                <div class="admin-card-row">
+                    <a href="{{ url_for('admin.edit_image', img_id=img.id, next=request.full_path) }}" class="flex-shrink-0 position-relative group">
+                        <img src="{{ img.thumbnail_path or img.file_path }}" class="admin-thumb">
+                        {% if img.type == 'img2img' %}
+                        <span class="position-absolute bottom-0 end-0 badge bg-black bg-opacity-50 border border-white border-opacity-25 rounded-pill m-1" style="font-size: 0.5rem;">I2I</span>
+                        {% endif %}
+                    </a>
+
+                    <div class="flex-grow-1 min-w-0 pe-4 d-flex flex-column justify-content-center">
+                        <h6 class="fw-bold mb-1 text-truncate text-dark" style="font-size: 1rem;">{{ img.title }}</h6>
+                        <div class="d-flex align-items-center text-secondary small text-truncate gap-3">
+                            <span><i class="bi bi-person me-1 opacity-50"></i>{{ img.author }}</span>
+                            <span class="opacity-50">&bull;</span>
+                            <span class="font-monospace opacity-75">{{ img.created_at.strftime('%Y-%m-%d') }}</span>
+                        </div>
+                    </div>
+
+                    <div class="d-none d-md-flex gap-1 me-4 flex-shrink-0 align-items-center" style="max-width: 250px; flex-wrap: wrap; justify-content: flex-end;">
+                        {% for tag in img.tags[:3] %}
+                        <span class="mini-tag">{{ tag.name }}</span>
+                        {% endfor %}
+
+                        {% if img.tags|length > 3 %}
+                        <span class="mini-tag" style="background:transparent; border:none;">+{{ img.tags|length - 3 }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex gap-2 flex-shrink-0 align-items-center">
+                        <a href="{{ url_for('admin.edit_image', img_id=img.id, next=request.full_path) }}"
+                           class="btn-circle-icon" title="编辑">
+                            <i class="bi bi-pencil-fill" style="font-size: 0.9rem;"></i>
+                        </a>
+                        <form action="{{ url_for('admin.delete', img_id=img.id) }}" method="POST" class="m-0" onsubmit="return confirm('确定永久删除？')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <input type="hidden" name="next" value="{{ url_for('admin.dashboard', tab='approved', page=approved_pagination.page, q=search_query) }}"/>
+                            <button class="btn-circle-icon bg-transparent text-secondary hover-danger" title="删除">
+                                <i class="bi bi-trash" style="font-size: 1rem;"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <div class="d-inline-block p-4 rounded-circle bg-light mb-3">
+                        <i class="bi bi-inbox text-secondary opacity-25 fs-1"></i>
+                    </div>
+                    <p class="text-muted small">暂无相关数据</p>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if approved_pagination.pages > 1 %}
+            <div class="pagination-container mt-5 mb-4">
+                 <nav class="pagination-capsule">
+                    <a class="page-btn {% if not approved_pagination.has_prev %}disabled{% endif %}"
+                       href="{{ url_for('admin.dashboard', page=approved_pagination.prev_num, tab='approved', q=search_query) }}">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                    <span class="page-btn active mx-1" style="background:transparent; color:var(--text-primary);">{{ approved_pagination.page }} / {{ approved_pagination.pages }}</span>
+                    <a class="page-btn {% if not approved_pagination.has_next %}disabled{% endif %}"
+                       href="{{ url_for('admin.dashboard', page=approved_pagination.next_num, tab='approved', q=search_query) }}">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                 </nav>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="tab-pane fade {{ 'show active' if active_tab == 'data-mgmt' else '' }}">
+            <div class="row g-4">
+
+                <div class="col-12">
+                    <div class="glass-panel p-4 d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-4">
+                            <div class="dashboard-icon-box bg-warning bg-opacity-10 text-warning m-0 flex-shrink-0">
+                                <i class="bi bi-eye-slash-fill"></i>
+                            </div>
+                            <div>
+                                <h5 class="fw-bold mb-1">访客可见性设置</h5>
+                                <p class="text-secondary small mb-0">
+                                    允许未登录访客在“关于”页面切换敏感内容显示。<br>
+                                    <span class="opacity-75">关闭后，敏感内容仅管理员可见。</span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0 text-end">
+                            <div class="form-check form-switch d-inline-block">
+                                <input class="form-check-input ios-switch" type="checkbox"
+                                       id="globalToggleBtn"
+                                       onchange="updateGlobalSetting(this)"
+                                       {% if config.ALLOW_PUBLIC_SENSITIVE_TOGGLE %}checked{% endif %}>
+                            </div>
+                            <div id="globalStatusText" class="small fw-bold mt-1 {{ 'text-success' if config.ALLOW_PUBLIC_SENSITIVE_TOGGLE else 'text-secondary' }}">
+                                {{ 'Access Allowed' if config.ALLOW_PUBLIC_SENSITIVE_TOGGLE else 'Access Denied' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="glass-panel p-4 h-100 glass-hover-card transition-transform">
+                        <div class="dashboard-icon-box bg-primary bg-opacity-10 text-primary">
+                            <i class="bi bi-cloud-download-fill"></i>
+                        </div>
+                        <h5 class="fw-bold mb-2">数据备份 (Backup)</h5>
+                        <p class="text-secondary small mb-4">生成包含所有图片原图、Prompt 和元数据的完整 ZIP 归档。</p>
+
+                        <div class="bg-white bg-opacity-50 rounded-3 p-3 mb-4 border border-secondary border-opacity-10">
+                            <div class="d-flex justify-content-between mb-2 small">
+                                <span class="text-muted">Images</span>
+                                <span class="fw-bold">{{ stats.total_images }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between small">
+                                <span class="text-muted">Tags</span>
+                                <span class="fw-bold">{{ stats.total_tags }}</span>
+                            </div>
+                        </div>
+
+                        <form action="{{ url_for('admin.export_zip') }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-light w-100 fw-bold border text-primary shadow-sm py-2">
+                                下载 ZIP 归档
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="glass-panel p-4 h-100 glass-hover-card transition-transform">
+                        <div class="dashboard-icon-box bg-success bg-opacity-10 text-success">
+                            <i class="bi bi-cloud-upload-fill"></i>
+                        </div>
+                        <h5 class="fw-bold mb-2">数据恢复 (Restore)</h5>
+                        <p class="text-secondary small mb-4">上传之前导出的 ZIP 包以恢复或迁移数据。重复图片将被自动跳过。</p>
+
+                        <div class="mb-3">
+                            <input type="file" id="zipFile" class="form-control form-control-apple" accept=".zip">
+                        </div>
+
+                        <button id="btnStartImport" class="btn btn-success w-100 text-white shadow-sm fw-bold py-2"
+                                style="background: #34c759; border: none;">
+                            开始导入
+                        </button>
+
+                        <div id="syncLog" class="terminal-log mt-3 d-none rounded-3 p-3 small custom-scrollbar"
+                             style="background:#222; color:#0f0; max-height:150px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal fade" id="tagsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content glass-panel border-0 shadow-lg overflow-hidden" style="background: rgba(255,255,255,0.95);">
+            <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
+                <div>
+                    <h4 class="fw-bold mb-1">标签管理</h4>
+                    <p class="text-secondary small mb-0">Sensitivity & Renaming</p>
+                </div>
+                <button type="button" class="btn-close bg-light rounded-circle p-2" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body custom-scrollbar p-4" style="max-height: 60vh; overflow-y: auto;">
+                <div class="d-flex flex-column gap-2">
+                    {% for tag in all_tags %}
+                    <div class="list-row-item py-2 px-3 bg-white border shadow-sm">
+                        <div class="flex-grow-1 d-flex align-items-center">
+                            <i class="bi bi-hash text-secondary opacity-50 me-2"></i>
+                            <form action="{{ url_for('admin.update_tag') }}" method="POST" class="flex-grow-1">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <input type="hidden" name="tag_id" value="{{ tag.id }}"/>
+                                <input type="text" name="new_name" value="{{ tag.name }}"
+                                       class="form-control border-0 bg-transparent fw-bold text-dark p-0 shadow-none"
+                                       style="font-size: 0.95rem;"
+                                       onchange="this.form.submit()">
+                            </form>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 border-start ps-3">
+                            <label class="form-check-label x-small text-secondary fw-bold text-uppercase" for="ts{{ tag.id }}">NSFW</label>
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input ios-switch danger" type="checkbox"
+                                       id="ts{{ tag.id }}"
+                                       onchange="updateTagSensitive(this, {{ tag.id }})"
+                                       style="transform: scale(0.7);"
+                                       {% if tag.is_sensitive %}checked{% endif %}>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Toggle Global Setting
+    function updateGlobalSetting(checkbox) {
+        const isChecked = checkbox.checked;
+        const statusText = document.getElementById('globalStatusText');
+        statusText.textContent = isChecked ? 'Access Allowed' : 'Access Denied';
+        statusText.className = `small fw-bold mt-1 ${isChecked ? 'text-success' : 'text-secondary'}`;
+
+        fetch("{{ url_for('admin.update_global_setting') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+            body: JSON.stringify({ allow_toggle: isChecked })
+        }).catch(() => { checkbox.checked = !isChecked; alert('设置保存失败'); });
+    }
+
+    // Toggle Tag Sensitive
+    function updateTagSensitive(checkbox, tagId) {
+        const isSensitive = checkbox.checked;
+        checkbox.style.opacity = '0.5';
+        fetch("{{ url_for('admin.update_tag') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+            body: JSON.stringify({ tag_id: tagId, is_sensitive: isSensitive })
+        }).then(res => {
+            checkbox.style.opacity = '1';
+            if(!res.ok) throw new Error();
+        }).catch(() => { checkbox.checked = !isSensitive; checkbox.style.opacity = '1'; });
+    }
+
+    // Import Logic
+    document.getElementById('btnStartImport').addEventListener('click', async function() {
+        const fileInput = document.getElementById('zipFile');
+        if (!fileInput.files.length) return alert('请选择文件');
+
+        const btn = this; const logDiv = document.getElementById('syncLog');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+        logDiv.classList.remove('d-none'); logDiv.innerText = 'Starting upload...\n';
+
+        try {
+            const formData = new FormData(); formData.append('zip_file', fileInput.files[0]); formData.append('csrf_token', '{{ csrf_token() }}');
+            const response = await fetch("{{ url_for('admin.import_zip') }}", { method: 'POST', body: formData });
+            const reader = response.body.getReader();
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                logDiv.innerText += new TextDecoder().decode(value);
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+        } catch (e) { logDiv.innerText += `\nError: ${e}`; }
+        finally { btn.disabled = false; btn.innerText = '开始导入'; fileInput.value = ''; }
+    });
+</script>
+
+<style>
+    /* Hover Danger helper for icon buttons */
+    .hover-danger:hover { background-color: #ff3b30 !important; color: white !important; }
+</style>
+{% endblock %}

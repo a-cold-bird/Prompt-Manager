@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}编辑作品 - Prompt Manager{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="d-flex align-items-center mb-5 animate-up">
+        <a href="{{ request.args.get('next') or url_for('admin.dashboard') }}"
+           class="btn btn-light rounded-circle me-3 shadow-sm d-flex align-items-center justify-content-center"
+           style="width:40px;height:40px;">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h2 class="fw-bold mb-0 art-title">编辑作品</h2>
+    </div>
+
+    <div class="glass-card animate-up" style="animation-delay: 0.1s;">
+        {% with mode='edit', image=img %}
+            {% include 'components/_form_image.html' %}
+        {% endwith %}
+    </div>
+</div>
+
+{% if config.USE_LOCAL_RESOURCES %}
+    <script src="{{ url_for('static', filename='js/Sortable.min.js') }}"></script>
+{% else %}
+    <script src="https://cdn.bootcdn.net/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/image_form.js') }}"></script>
+{% endblock %}

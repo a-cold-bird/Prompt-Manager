@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Prompt Manager{% endblock %}</title>
+
+    {% if config.USE_LOCAL_RESOURCES %}
+        <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/bootstrap-icons.min.css') }}" rel="stylesheet">
+        <link href="{{ url_for('static', filename='css/nprogress.min.css') }}" rel="stylesheet">
+    {% else %}
+        <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.5/font/bootstrap-icons.min.css" rel="stylesheet">
+        <link href="https://cdn.bootcdn.net/ajax/libs/nprogress/0.2.0/nprogress.min.css" rel="stylesheet">
+    {% endif %}
+
+    <link href="/static/css/style.css" rel="stylesheet">
+
+    <style>
+        #nprogress .bar { background: #0071e3 !important; height: 3px !important; }
+        #nprogress .peg { box-shadow: 0 0 10px #0071e3, 0 0 5px #0071e3 !important; }
+        #nprogress .spinner-icon { border-top-color: #0071e3 !important; border-left-color: #0071e3 !important; }
+
+        @media (max-width: 576px) {
+            .apple-navbar .container-fluid { flex-wrap: nowrap; }
+            .apple-navbar .nav-main-left { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .apple-navbar .nav-main-left::-webkit-scrollbar { display: none; }
+            .apple-navbar .nav-pill-link { padding-inline: 0.5rem; white-space: nowrap; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar fixed-top w-100 p-0 apple-navbar">
+        <div class="container-fluid px-4 py-2 d-flex justify-content-between align-items-center h-100">
+            <div class="d-flex align-items-center gap-1 nav-main-left flex-nowrap">
+                <a href="{{ url_for('public.index') }}" class="nav-pill-link {{ 'active' if request.endpoint == 'public.index' and not request.args.get('tag') else '' }}">
+                    <i class="bi bi-grid-fill me-2"></i>画廊
+                </a>
+
+                {% if request.endpoint == 'public.index' %}
+                <a href="#" class="nav-pill-link d-md-none {{ 'active' if request.args.get('tag') else '' }}" data-bs-toggle="offcanvas" data-bs-target="#mobileTagSidebar">
+                    <i class="bi bi-funnel-fill me-2"></i>筛选
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('public.upload') }}" class="nav-pill-link {{ 'active' if request.endpoint == 'public.upload' else '' }}">
+                    <i class="bi bi-plus-lg me-2"></i>上传
+                </a>
+
+                <a href="{{ url_for('public.about') }}" class="nav-pill-link {{ 'active' if request.endpoint == 'public.about' else '' }}">
+                    <i class="bi bi-info-circle me-2"></i>关于
+                </a>
+            </div>
+
+            {% if current_user.is_authenticated %}
+            <div class="d-flex gap-2 flex-shrink-0">
+                <a href="{{ url_for('admin.dashboard') }}" class="nav-icon-btn {{ 'active' if request.blueprint == 'admin' else '' }}" title="后台管理">
+                    <i class="bi bi-speedometer2"></i>
+                </a>
+                <a href="{{ url_for('auth.logout') }}" class="nav-icon-btn" title="退出登录">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div style="padding-top: 70px;">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="position-fixed top-0 start-50 translate-middle-x mt-5 pt-4" style="z-index: 2000;">
+                <div class="alert alert-dark shadow-sm rounded-pill px-4 py-2 border-0 d-flex align-items-center backdrop-blur">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    {{ messages[0] }}
+                </div>
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    {% if config.USE_LOCAL_RESOURCES %}
+        <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+        <script src="{{ url_for('static', filename='js/nprogress.min.js') }}"></script>
+    {% else %}
+        <script src="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+        <script src="https://cdn.bootcdn.net/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+    {% endif %}
+
+    <script>
+        setTimeout(() => { document.querySelectorAll('.alert').forEach(el => el.remove()); }, 3000);
+
+        window.UserContext = { isAdmin: {{ current_user.is_authenticated | tojson }} };
+
+        NProgress.configure({ showSpinner: false });
+        window.addEventListener('load', function() { NProgress.done(); });
+        document.addEventListener('submit', function() { NProgress.start(); });
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (!link || !link.href) return;
+            if (link.target === '_blank' || e.ctrlKey || link.hasAttribute('data-bs-toggle') || link.href.startsWith('#') || link.href.startsWith('javascript')) return;
+            NProgress.start();
+        });
+    </script>
+</body>
+</html>

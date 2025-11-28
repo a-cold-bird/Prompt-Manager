@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}发布成功 - Prompt Manager{% endblock %}
+
+{% block content %}
+<div class="page-container d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+    <div class="glass-card text-center p-5 animate-up" style="max-width: 500px; width: 100%;">
+        <div class="mb-4 d-inline-flex align-items-center justify-content-center rounded-circle bg-success bg-opacity-10 scale-in-bounce"
+             style="width: 100px; height: 100px;">
+            <i class="bi bi-check-lg text-success" style="font-size: 3.5rem;"></i>
+        </div>
+
+        <h2 class="fw-bold mb-3 art-title">发布成功</h2>
+        <p class="text-secondary mb-4 px-3" style="line-height: 1.6;">
+            作品已提交，需经过管理员审核后才会展示在首页。<br>
+            您现在可以继续发布或返回画廊。
+        </p>
+
+        <div class="d-flex flex-column gap-3">
+            <a href="{{ url_for('public.upload') }}" class="btn btn-apple-primary w-100 py-3 shadow-sm">
+                <i class="bi bi-plus-lg me-2"></i>继续发布
+            </a>
+            <a href="{{ url_for('public.index') }}" class="btn btn-light w-100 py-3 rounded-pill text-secondary">
+                返回画廊
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

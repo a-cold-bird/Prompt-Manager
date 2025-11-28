@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}发布作品 - Prompt Manager{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="text-center mb-5 animate-up">
+        <h2 class="fw-bold mb-2 art-title">发布新作品</h2>
+        <p class="text-secondary">Share your creation with the library.</p>
+    </div>
+
+    <div class="glass-card animate-up" style="animation-delay: 0.1s;">
+        {% with mode='create', image=None %}
+            {% include 'components/_form_image.html' %}
+        {% endwith %}
+    </div>
+</div>
+
+{# 依赖库：SortableJS 用于拖拽排序 #}
+{% if config.USE_LOCAL_RESOURCES %}
+    <script src="{{ url_for('static', filename='js/Sortable.min.js') }}"></script>
+{% else %}
+    <script src="https://cdn.bootcdn.net/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/image_form.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,149 @@
+{#
+    组件: 作品上传/编辑表单
+    参数:
+    - mode: 'create' 或 'edit'
+    - image: Image对象 (编辑模式下传入)
+#}
+
+<form id="imageForm" method="POST" enctype="multipart/form-data"
+      data-mode="{{ mode }}"
+      {% if image %}
+      data-existing-tags='{{ image.tags | map(attribute="name") | list | tojson }}'
+      data-existing-refs='{{ image.refs | map(attribute="file_path") | list | tojson }}'
+      data-existing-ref-ids='{{ image.refs | map(attribute="id") | list | tojson }}'
+      {% endif %}
+>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
+    {% if mode == 'edit' %}
+    <input type="hidden" name="deleted_ref_ids" id="deletedRefIds">
+    {% endif %}
+    <input type="hidden" name="ref_layout" id="refLayoutInput">
+
+    <div class="mb-5 animate-up" style="animation-delay: 0.05s;">
+        <label class="form-label-apple text-secondary small text-uppercase ls-1 mb-3 d-block">
+            Work Type <span class="label-badge required">必选</span>
+        </label>
+        <div class="row g-3">
+            <div class="col-6">
+                <div class="type-selector-card p-4 text-center {{ 'active' if (image and image.type == 'txt2img') or not image else '' }}"
+                     data-type="txt2img">
+                    <div class="check-badge"><i class="bi bi-check-lg small"></i></div>
+                    <i class="bi bi-fonts mb-3 d-block opacity-75"></i>
+                    <span class="type-label">文生图 (Txt2Img)</span>
+                    <input type="radio" name="type" value="txt2img" class="d-none"
+                           {{ 'checked' if (image and image.type == 'txt2img') or not image else '' }}>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="type-selector-card p-4 text-center {{ 'active' if image and image.type == 'img2img' else '' }}"
+                     data-type="img2img">
+                    <div class="check-badge"><i class="bi bi-check-lg small"></i></div>
+                    <i class="bi bi-images mb-3 d-block opacity-75"></i>
+                    <span class="type-label">图生图 (Img2Img)</span>
+                    <input type="radio" name="type" value="img2img" class="d-none"
+                           {{ 'checked' if image and image.type == 'img2img' else '' }}>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-5 animate-up" style="animation-delay: 0.1s;">
+        <label class="form-label-apple">
+            主作品图 <span class="label-badge required">必填</span>
+        </label>
+        <div class="position-relative rounded-4 text-center overflow-hidden upload-zone shadow-sm transition-all"
+             style="min-height: 360px; background: var(--sidebar-bg);">
+            <input class="position-absolute top-0 start-0 w-100 h-100 opacity-0" type="file" id="mainImageInput" name="{{ 'new_image' if mode == 'edit' else 'image' }}" accept="image/*" {{ 'required' if mode == 'create' else '' }}>
+
+            <div id="mainPlaceholder" class="py-5 d-flex flex-column align-items-center justify-content-center h-100 pointer-events-none {{ 'd-none' if image else '' }}">
+                <div class="mb-4 upload-icon-circle bg-light text-primary">
+                    <i class="bi bi-cloud-arrow-up-fill"></i>
+                </div>
+                <div class="fw-bold fs-5 mb-1" style="color: var(--text-primary);">拖拽或点击上传</div>
+                <div class="text-secondary small opacity-75">支持 JPG, PNG, WEBP (Max 20MB)</div>
+            </div>
+
+            <img id="mainPreview" src="{{ image.file_path if image else '' }}"
+                 class="img-fluid w-100 h-100 object-fit-contain position-absolute top-0 start-0 bg-dark {{ 'd-none' if not image else '' }}"
+                 style="transition: opacity 0.3s;">
+        </div>
+    </div>
+
+    <div id="refUploadArea" class="mb-5 animate-up {{ 'd-none' if (not image) or (image.type != 'img2img') else '' }}" style="animation-delay: 0.15s;">
+        <div class="d-flex justify-content-between align-items-end mb-3">
+            <label class="form-label-apple mb-0">
+                参考图序列 <span class="label-badge optional">选填</span>
+            </label>
+            <button type="button" class="btn btn-sm btn-white border shadow-sm rounded-pill px-3 fw-bold text-primary" id="btnAddRef" style="font-size: 0.8rem;">
+                <i class="bi bi-plus-lg me-1"></i>添加图片
+            </button>
+        </div>
+
+        <input type="file" id="tempRefInput" class="d-none" accept="image/*" multiple>
+
+        <div id="refContainer" class="d-flex flex-wrap gap-3 p-4 rounded-4 border border-dashed transition-bg"
+             style="background: var(--btn-bg); min-height: 160px; border-color: rgba(128,128,128,0.2) !important;">
+
+             <div class="text-secondary small w-100 text-center py-5 d-flex flex-column justify-content-center opacity-50 {{ 'd-none' if image and image.refs|length > 0 else '' }}" id="refEmptyMsg">
+                <i class="bi bi-layers-half fs-1 mb-2"></i>
+                <span>暂无参考图<br>上传后可拖拽排序</span>
+            </div>
+        </div>
+        <input type="file" name="{{ 'add_refs' if mode == 'edit' else 'ref_images' }}" id="finalRefInput" multiple class="d-none">
+    </div>
+
+    <div class="row g-4 mb-4 animate-up" style="animation-delay: 0.2s;">
+        <div class="col-md-6">
+            <label class="form-label-apple">标题 <span class="label-badge required">必填</span></label>
+            <input type="text" class="form-control-apple shadow-sm" name="title"
+                   value="{{ image.title if image else '' }}"
+                   placeholder="给作品起个名字..." required>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label-apple">作者 <span class="label-badge optional">选填</span></label>
+            <input type="text" class="form-control-apple shadow-sm" name="author"
+                   value="{{ image.author if image else '' }}"
+                   placeholder="留空则默认为匿名">
+        </div>
+    </div>
+
+    <div class="mb-4 animate-up" style="animation-delay: 0.25s;">
+        <label class="form-label-apple">Prompt <span class="label-badge required">必填</span></label>
+        <textarea class="form-control-apple shadow-sm" name="prompt" rows="5"
+                  placeholder="输入提示词..."
+                  style="font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 0.9rem; line-height: 1.5;">{{ image.prompt if image else '' }}</textarea>
+    </div>
+
+    <div class="mb-4 animate-up" style="animation-delay: 0.3s;">
+        <label class="form-label-apple">备注 <span class="label-badge optional">选填</span></label>
+        <textarea class="form-control-apple shadow-sm" name="description" rows="3"
+                  placeholder="关于这个作品的更多说明...">{{ image.description if image else '' }}</textarea>
+    </div>
+
+    {% if mode == 'edit' %}
+    <div class="mb-4 animate-up" style="animation-delay: 0.35s;">
+        <label class="form-label-apple">发布状态</label>
+        <select class="form-select form-control-apple shadow-sm" name="status">
+            <option value="pending" {{ 'selected' if image.status == 'pending' else '' }}>⏳ 待审核 (Pending)</option>
+            <option value="approved" {{ 'selected' if image.status == 'approved' else '' }}>✅ 已发布 (Approved)</option>
+        </select>
+    </div>
+    {% endif %}
+
+    <div class="mb-5 animate-up" style="animation-delay: 0.4s;">
+        <label class="form-label-apple">标签 <span class="label-badge optional">选填</span></label>
+        <div class="tag-container shadow-sm bg-white" id="tagWrapper">
+            <input type="text" id="tagInput" class="tag-input" placeholder="输入标签后回车..." autocomplete="off">
+        </div>
+        <input type="hidden" name="tags" id="realTagsInput">
+    </div>
+
+    <div class="form-action-bar animate-up" style="animation-delay: 0.45s;">
+        <a href="{{ request.args.get('next') or url_for('public.index') }}" class="btn-hero-ghost text-decoration-none">取消</a>
+        <button type="submit" id="submitBtn" class="btn-hero-primary">
+            {{ '保存更改' if mode == 'edit' else '发布作品' }}
+        </button>
+    </div>
+</form>

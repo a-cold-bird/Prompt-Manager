@@ -1,0 +1,130 @@
+import os
+import uuid
+import urllib.request
+from PIL import Image as PilImage
+from flask import current_app
+
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
+THUMB_SIZE = (400, 400)
+
+
+def process_image(file_storage, upload_folder):
+    """
+    处理上传图片：保存原图并生成缩略图。
+    支持自动压缩和 GIF 处理。
+    """
+    filename = file_storage.filename
+    ext = os.path.splitext(filename)[1].lower() if filename else ''
+    if ext not in ALLOWED_EXTENSIONS:
+        ext = '.jpg'
+
+    unique_name = uuid.uuid4().hex
+    filename = f"{unique_name}{ext}"
+
+    # 路径处理
+    if not os.path.isabs(upload_folder):
+        full_upload_dir = os.path.join(current_app.root_path, upload_folder)
+    else:
+        full_upload_dir = upload_folder
+
+    if not os.path.exists(full_upload_dir):
+        os.makedirs(full_upload_dir)
+
+    file_abspath = os.path.join(full_upload_dir, filename)
+
+    # 配置读取
+    max_dim = current_app.config.get('IMG_MAX_DIMENSION', 1600)
+    save_quality = current_app.config.get('IMG_QUALITY', 85)
+    enable_compress = current_app.config.get('ENABLE_IMG_COMPRESS', True)
+
+    try:
+        img = PilImage.open(file_storage)
+
+        # GIF 特殊处理：保留帧
+        if img.format == 'GIF':
+            img.save(file_abspath, save_all=True, optimize=True)
+            web_path = f"/{upload_folder}/{filename}".replace('//', '/')
+            return web_path, web_path
+
+        # 生成缩略图
+        thumb_filename = f"{unique_name}_thumb.jpg"
+        thumb_abspath = os.path.join(full_upload_dir, thumb_filename)
+
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+
+        img_thumb = img.copy()
+        img_thumb.thumbnail(THUMB_SIZE)
+        img_thumb.save(thumb_abspath, quality=90, optimize=True)
+
+        # 保存主图
+        if enable_compress:
+            if img.width > max_dim or img.height > max_dim:
+                img.thumbnail((max_dim, max_dim), PilImage.Resampling.LANCZOS)
+            img.save(file_abspath, quality=save_quality, optimize=True)
+        else:
+            img.save(file_abspath, quality=100, optimize=False)
+
+        web_original = f"/{upload_folder}/{filename}".replace('//', '/')
+        web_thumb = f"/{upload_folder}/{thumb_filename}".replace('//', '/')
+
+        return web_original, web_thumb
+
+    except Exception as e:
+        current_app.logger.error(f"Image processing error: {e}")
+        raise e
+
+
+def remove_physical_file(web_path):
+    """安全删除物理文件"""
+    if not web_path: return
+
+    try:
+        clean_path = web_path.lstrip('/')
+        full_path = os.path.join(current_app.root_path, clean_path)
+
+        if '..' in clean_path:
+            return
+
+        if os.path.exists(full_path):
+            os.remove(full_path)
+    except Exception as e:
+        current_app.logger.error(f"File deletion error: {e}")
+
+
+def ensure_local_resources(app):
+    """
+    检查并下载必要的静态资源 (Bootstrap, Icons 等)，
+    实现内网或离线环境部署。
+    """
+    if not app.config.get('USE_LOCAL_RESOURCES'):
+        return
+
+    static_root = app.static_folder
+
+    # 资源映射表
+    resources = {
+        'css/bootstrap.min.css': 'https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css',
+        'css/nprogress.min.css': 'https://cdn.bootcdn.net/ajax/libs/nprogress/0.2.0/nprogress.min.css',
+        'css/bootstrap-icons.min.css': 'https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.5/font/bootstrap-icons.min.css',
+        'js/bootstrap.bundle.min.js': 'https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.0/js/bootstrap.bundle.min.js',
+        'js/nprogress.min.js': 'https://cdn.bootcdn.net/ajax/libs/nprogress/0.2.0/nprogress.min.js',
+        'js/Sortable.min.js': 'https://cdn.bootcdn.net/ajax/libs/Sortable/1.15.0/Sortable.min.js',
+        'css/fonts/bootstrap-icons.woff2': 'https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.5/font/fonts/bootstrap-icons.woff2',
+        'css/fonts/bootstrap-icons.woff': 'https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.5/font/fonts/bootstrap-icons.woff',
+    }
+
+    opener = urllib.request.build_opener()
+    opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+    urllib.request.install_opener(opener)
+
+    for relative_path, url in resources.items():
+        local_path = os.path.join(static_root, relative_path)
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+        if not os.path.exists(local_path):
+            try:
+                print(f"Downloading resource: {relative_path}")
+                urllib.request.urlretrieve(url, local_path)
+            except Exception as e:
+                print(f"Failed to download {relative_path}: {e}")

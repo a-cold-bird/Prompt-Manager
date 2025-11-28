@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block title %}关于 - Prompt Manager{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 800px;">
+
+    <div class="text-center mb-5 animate-up">
+        <div class="mb-3 d-inline-flex align-items-center justify-content-center shadow-sm"
+             style="width: 80px; height: 80px; background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%); border-radius: 22px;">
+            <i class="bi bi-images text-primary" style="font-size: 2.5rem; opacity: 0.8;"></i>
+        </div>
+        <h2 class="fw-bold mb-2" style="letter-spacing: -0.5px;">Prompt Manager</h2>
+        <p class="text-secondary small">Local AI Art Collection & Workflow Tool</p>
+
+        <div class="mt-3">
+            <a href="https://github.com/vioaki/Prompt-Manager" target="_blank" class="btn btn-dark rounded-pill px-4 py-2 small fw-bold shadow-sm transition-transform hover-scale">
+                <i class="bi bi-github me-2"></i>GitHub Repository
+            </a>
+        </div>
+    </div>
+
+    {% if config.ALLOW_PUBLIC_SENSITIVE_TOGGLE or current_user.is_authenticated %}
+    <div class="glass-panel p-4 mb-5 animate-up" style="animation-delay: 0.1s;">
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-warning"
+                     style="width: 48px; height: 48px; flex-shrink: 0;">
+                    <i class="bi bi-eye-slash-fill fs-5"></i>
+                </div>
+                <div>
+                    <h6 class="fw-bold mb-1">敏感内容展示 (NSFW)</h6>
+                    <p class="text-secondary small mb-0 line-height-sm">
+                        开启后，画廊将显示被标记为敏感的作品。
+                    </p>
+                    {% if not config.ALLOW_PUBLIC_SENSITIVE_TOGGLE and current_user.is_authenticated %}
+                    <p class="text-danger x-small mb-0 mt-1 fw-bold">
+                        * 全局开关已锁定，当前仅管理员可见此选项
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-check form-switch m-0">
+                <input class="form-check-input ios-switch danger" type="checkbox" role="switch" id="sensitiveToggle">
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="glass-panel p-4 mb-5 animate-up" style="animation-delay: 0.2s;">
+        <h5 class="fw-bold mb-4 art-title" style="font-size: 1.1rem;">快速使用指南</h5>
+
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="d-flex gap-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary"
+                         style="width: 42px; height: 42px; flex-shrink: 0;">
+                        <i class="bi bi-cloud-arrow-up-fill"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-1">上传与记录</h6>
+                        <p class="text-secondary small mb-0 line-height-sm">
+                            支持拖拽上传。对于 Img2Img 作品，可上传多张参考图并调整顺序。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="d-flex gap-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success"
+                         style="width: 42px; height: 42px; flex-shrink: 0;">
+                        <i class="bi bi-search"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-1">检索与复用</h6>
+                        <p class="text-secondary small mb-0 line-height-sm">
+                            详情页一键复制 Prompt。支持通过标签组合或关键词快速筛选灵感。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="d-flex gap-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-danger bg-opacity-10 text-danger"
+                         style="width: 42px; height: 42px; flex-shrink: 0;">
+                        <i class="bi bi-shield-lock-fill"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-1">管理与审核</h6>
+                        <p class="text-secondary small mb-0 line-height-sm">
+                            所有作品默认“待审核”。管理员可登录后台进行发布、删除或数据备份。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="d-flex gap-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center bg-info bg-opacity-10 text-info"
+                         style="width: 42px; height: 42px; flex-shrink: 0;">
+                        <i class="bi bi-database-down"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-1">数据主权</h6>
+                        <p class="text-secondary small mb-0 line-height-sm">
+                            完全本地化运行。支持 ZIP 格式一键全量备份与恢复，轻松迁移。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="animate-up" style="animation-delay: 0.3s;">
+        <h4 class="fw-bold art-title mb-4">开发者接口 (API)</h4>
+
+        <p class="text-secondary mb-3 small">
+            本系统提供标准的 HTTP <code>GET</code> 接口，返回 JSON 格式的作品数据，方便集成到其他工作流中。
+        </p>
+
+        <div class="bg-light bg-opacity-50 rounded-3 p-3 border border-secondary border-opacity-10 mb-4 d-flex align-items-center shadow-sm">
+            <span class="badge bg-secondary me-3">GET</span>
+            <code class="text-dark fw-bold flex-grow-1 text-break" style="font-family: 'SF Mono', monospace;">
+                {{ url_for('public.api_list', _external=True) }}
+            </code>
+            <button class="btn btn-sm btn-outline-secondary border-0"
+                    onclick="navigator.clipboard.writeText('{{ url_for('public.api_list', _external=True) }}'); alert('地址已复制')"
+                    title="复制接口地址">
+                <i class="bi bi-clipboard"></i>
+            </button>
+        </div>
+
+        <h6 class="fw-bold text-secondary small text-uppercase mb-3 ps-1">请求参数 (Query Parameters)</h6>
+        <div class="table-responsive mb-4 rounded-3 border border-secondary border-opacity-10 overflow-hidden">
+            <table class="table table-sm small text-secondary mb-0 bg-white">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-3 py-2" style="width: 100px;">参数名</th>
+                        <th class="py-2" style="width: 80px;">类型</th>
+                        <th class="py-2" style="width: 80px;">默认值</th>
+                        <th class="py-2">描述</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="ps-3 font-monospace text-dark">page</td>
+                        <td>Int</td>
+                        <td>1</td>
+                        <td>分页页码。</td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3 font-monospace text-dark">per_page</td>
+                        <td>Int</td>
+                        <td>100</td>
+                        <td>每页返回数量（最大 1000）。</td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3 font-monospace text-dark">tag</td>
+                        <td>String</td>
+                        <td>-</td>
+                        <td>按标签名称筛选。</td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3 font-monospace text-dark">q</td>
+                        <td>String</td>
+                        <td>-</td>
+                        <td>搜索关键词（匹配标题或 Prompt）。</td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3 font-monospace text-dark">sort</td>
+                        <td>String</td>
+                        <td>date</td>
+                        <td>排序方式：<code>date</code> (时间倒序), <code>hot</code> (热度), <code>random</code> (随机)。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h6 class="fw-bold text-secondary small text-uppercase mb-3 ps-1">响应示例 (Response Example)</h6>
+        <div class="bg-dark text-white p-3 rounded-3 shadow-sm position-relative group">
+            <pre class="m-0 custom-scrollbar" style="font-family: 'SF Mono', monospace; font-size: 0.8rem; color: #a5d6ff; max-height: 300px; overflow-y: auto;">{
+  "current_page": 1,
+  "pages": 5,
+  "total": 120,
+  "data": [
+    {
+      "id": 42,
+      "title": "Cyberpunk City",
+      "author": "Admin",
+      "prompt": "neon lights, rain, futuristic city...",
+      "type": "txt2img",
+      "file_path": "/static/uploads/image_123.jpg",
+      "thumbnail_path": "/static/uploads/image_123_thumb.jpg",
+      "tags": ["scifi", "landscape"],
+      "refs": [],
+      "heat_score": 150,
+      "created_at": "2023-10-27T10:00:00"
+    }
+  ]
+}</pre>
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .hover-scale:hover { transform: scale(1.05); }
+    .transition-transform { transition: transform 0.2s ease; }
+    .line-height-sm { line-height: 1.5; }
+</style>
+
+<script>
+(function () {
+    const COOKIE_NAME = 'pm_show_sensitive';
+    const toggle = document.getElementById('sensitiveToggle');
+
+    if (toggle) {
+        const isEnabled = document.cookie.split('; ').find(row => row.startsWith(COOKIE_NAME + '='))?.split('=')[1] === '1';
+        toggle.checked = isEnabled;
+
+        toggle.addEventListener('change', function() {
+            const d = new Date();
+            d.setTime(d.getTime() + (30 * 24 * 60 * 60 * 1000));
+            document.cookie = `${COOKIE_NAME}=${toggle.checked ? '1' : '0'};expires=${d.toUTCString()};path=/`;
+            setTimeout(() => window.location.reload(), 300);
+        });
+    }
+})();
+</script>
+{% endblock %}
