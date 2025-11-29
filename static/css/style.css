@@ -603,3 +603,70 @@ h1.art-title, h2.art-title {
     background: var(--sidebar-bg); border-color: var(--accent-color);
     box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15);
 }
+
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 3rem;
+    padding-bottom: 4rem;
+}
+
+.pagination-modern {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 16px;
+    border: 1px solid rgba(128, 128, 128, 0.1);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .pagination-modern {
+    background: rgba(40, 40, 40, 0.6);
+    border-color: rgba(255, 255, 255, 0.05);
+}
+
+.page-link-item {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    user-select: none;
+}
+
+.page-link-item:hover:not(.disabled):not(.active) {
+    background: var(--btn-bg);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.page-link-item.active {
+    background: var(--text-primary);
+    color: var(--bg-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.page-link-item.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+    cursor: default;
+}
+
+.page-ellipsis {
+    color: var(--text-secondary);
+    opacity: 0.5;
+    padding: 0 4px;
+    font-size: 0.8rem;
+    letter-spacing: 2px;
+}
