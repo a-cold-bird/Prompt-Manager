@@ -71,8 +71,8 @@ pip install -r requirements.txt
 # 复制配置文件 (请修改默认账号密码) (windows环境使用copy命令)
 cp .env.example .env
 
-# 初始化数据库 (自动创建 data.sqlite 和管理员账户)
-flask init-db
+# 初始化/升级数据库 (自动创建 data.sqlite 和管理员账户)
+manage_db.py
 ```
 
 > **默认管理员账号**: `admin`
