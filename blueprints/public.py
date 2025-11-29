@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, current_app, url_for, jsonify
 from flask_login import current_user
 from sqlalchemy.sql.expression import func
-from models import db, Image, Tag
+from models import db, Image, Tag, SystemSetting
 from extensions import limiter
 from services.image_service import ImageService
 
@@ -11,7 +11,11 @@ bp = Blueprint('public', __name__)
 def can_see_sensitive():
     """判断当前用户是否有权查看敏感内容"""
     if current_user.is_authenticated: return True
-    if not current_app.config.get('ALLOW_PUBLIC_SENSITIVE_TOGGLE', True): return False
+
+    # 从数据库读取开关，确保持久化配置生效
+    allow_toggle = SystemSetting.get_bool('allow_sensitive_toggle', default=True)
+
+    if not allow_toggle: return False
     return request.cookies.get('pm_show_sensitive') == '1'
 
 
@@ -100,13 +104,32 @@ def upload():
     file = request.files.get('image')
     if not file: return "缺少主图", 400
 
+    # 1. 获取用户选择的分类 (gallery 或 template)
+    category = request.form.get('category', 'gallery')
+
+    # 2. 根据分类读取对应的持久化配置开关
+    if category == 'template':
+        need_approval = SystemSetting.get_bool('approval_template', default=True)
+    else:
+        need_approval = SystemSetting.get_bool('approval_gallery', default=True)
+
+    # 3. 决定初始状态
+    initial_status = 'pending' if need_approval else 'approved'
+
     try:
-        ImageService.create_image(
+        # 4. 构造表单数据副本以注入状态
+        form_data = request.form.to_dict()
+        form_data['status'] = initial_status
+
+        new_image = ImageService.create_image(
             file=file,
-            data=request.form,
+            data=form_data,
             ref_files=request.files.getlist('ref_images')
         )
-        return render_template('success.html')
+
+        # 5. 渲染成功页面，传递状态以决定显示内容
+        return render_template('success.html', status=initial_status, image=new_image)
+
     except Exception as e:
         current_app.logger.error(f"Upload Error: {e}")
         return f"发布失败: {str(e)}", 500

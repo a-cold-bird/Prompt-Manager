@@ -16,6 +16,31 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(200))
 
 
+class SystemSetting(db.Model):
+    """系统配置表 (Key-Value 存储)"""
+    key = db.Column(db.String(50), primary_key=True)
+    value = db.Column(db.String(255))  # 存储 '1'/'0' 或其他字符串
+
+    @staticmethod
+    def get_bool(key, default=True):
+        """获取布尔值设置"""
+        setting = db.session.get(SystemSetting, key)
+        if not setting:
+            return default
+        return setting.value == '1'
+
+    @staticmethod
+    def set_bool(key, value):
+        """设置布尔值"""
+        setting = db.session.get(SystemSetting, key)
+        if not setting:
+            setting = SystemSetting(key=key)
+            db.session.add(setting)
+        # 将 Python bool 转换为 '1' 或 '0'
+        setting.value = '1' if value else '0'
+        db.session.commit()
+
+
 class Image(db.Model):
     """核心作品模型"""
     id = db.Column(db.Integer, primary_key=True)

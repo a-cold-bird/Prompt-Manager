@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, Response, \
     stream_with_context, send_file, jsonify
 from flask_login import login_required
-from models import db, Image, Tag, ReferenceImage
+from models import db, Image, Tag, ReferenceImage, SystemSetting
 from services.image_service import ImageService
 from services.data_service import DataService
 import json
@@ -43,13 +43,25 @@ def dashboard():
         'total_tags': Tag.query.count()
     }
 
+    # 获取系统设置 (从数据库读取持久化配置)
+    approval_settings = {
+        'gallery': SystemSetting.get_bool('approval_gallery', default=True),
+        'template': SystemSetting.get_bool('approval_template', default=True)
+    }
+
+    # 获取敏感内容开关设置
+    allow_sensitive_toggle = SystemSetting.get_bool('allow_sensitive_toggle', default=True)
+    current_app.config['ALLOW_PUBLIC_SENSITIVE_TOGGLE'] = allow_sensitive_toggle
+
     return render_template('admin.html',
                            pending_images=pending_images,
                            approved_pagination=approved_pagination,
                            active_tab=active_tab,
                            search_query=search_query,
                            all_tags=all_tags,
-                           stats=stats)
+                           stats=stats,
+                           approval_settings=approval_settings,
+                           allow_sensitive_toggle=allow_sensitive_toggle)
 
 
 @bp.route('/approve/<int:img_id>', methods=['POST'])
@@ -252,16 +264,30 @@ def update_tag():
 @bp.route('/setting/global', methods=['POST'])
 @login_required
 def update_global_setting():
-    """全局设置：是否允许访客查看敏感内容"""
+    """全局设置：更新各类系统开关"""
     is_json = request.is_json
     data = request.get_json() if is_json else request.form
 
-    allow = data.get('allow_toggle', False)
-    if not is_json and 'allow_toggle' in request.form:
-        allow = True
+    # 1. 敏感内容开关
+    if 'allow_toggle' in data:
+        val = data.get('allow_toggle', False)
+        # 兼容表单
+        if not is_json and 'allow_toggle' in request.form:
+            val = True
+        elif not is_json:
+            val = False
 
-    current_app.config['ALLOW_PUBLIC_SENSITIVE_TOGGLE'] = allow
+        SystemSetting.set_bool('allow_sensitive_toggle', val)
+        current_app.config['ALLOW_PUBLIC_SENSITIVE_TOGGLE'] = val
+
+    # 2. 画廊审核开关
+    if 'approval_gallery' in data:
+        SystemSetting.set_bool('approval_gallery', data.get('approval_gallery'))
+
+    # 3. 模板审核开关
+    if 'approval_template' in data:
+        SystemSetting.set_bool('approval_template', data.get('approval_template'))
 
     if is_json: return jsonify({'status': 'ok'})
-    flash(f'设置更新: {"允许" if allow else "禁止"} 访客开关')
+    flash('系统设置已更新')
     return redirect(url_for('admin.dashboard', tab='data-mgmt'))

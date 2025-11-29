@@ -240,10 +240,56 @@
                                 <input class="form-check-input ios-switch" type="checkbox"
                                        id="globalToggleBtn"
                                        onchange="updateGlobalSetting(this)"
-                                       {% if config.ALLOW_PUBLIC_SENSITIVE_TOGGLE %}checked{% endif %}>
+                                       {% if allow_sensitive_toggle %}checked{% endif %}>
                             </div>
-                            <div id="globalStatusText" class="small fw-bold mt-1 {{ 'text-success' if config.ALLOW_PUBLIC_SENSITIVE_TOGGLE else 'text-secondary' }}">
-                                {{ 'Access Allowed' if config.ALLOW_PUBLIC_SENSITIVE_TOGGLE else 'Access Denied' }}
+                            <div id="globalStatusText" class="small fw-bold mt-1 {{ 'text-success' if allow_sensitive_toggle else 'text-secondary' }}">
+                                {{ 'Access Allowed' if allow_sensitive_toggle else 'Access Denied' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="glass-panel p-4">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="dashboard-icon-box bg-primary bg-opacity-10 text-primary m-0 me-3" style="width: 48px; height: 48px; font-size: 1.2rem;">
+                                <i class="bi bi-shield-check"></i>
+                            </div>
+                            <div>
+                                <h5 class="fw-bold mb-0">发布审核策略 (Moderation Policy)</h5>
+                                <p class="text-secondary small mb-0">开启后，用户上传的作品需管理员审核通过后才会显示。</p>
+                            </div>
+                        </div>
+
+                        <div class="row g-4 pt-2">
+                            <div class="col-md-6 d-flex align-items-center justify-content-between border-end border-secondary border-opacity-10 pe-md-4">
+                                <div>
+                                    <span class="fw-bold d-block text-dark">画廊 (Gallery)</span>
+                                    <span id="galleryStatusText" class="x-small fw-bold {{ 'text-warning' if approval_settings.gallery else 'text-success' }}">
+                                        {{ '需人工审核' if approval_settings.gallery else '自动发布' }}
+                                    </span>
+                                </div>
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input ios-switch" type="checkbox"
+                                           id="galleryToggle"
+                                           onchange="updateApprovalSetting('gallery', this)"
+                                           {% if approval_settings.gallery %}checked{% endif %}>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6 d-flex align-items-center justify-content-between ps-md-4">
+                                <div>
+                                    <span class="fw-bold d-block text-dark">模板 (Template)</span>
+                                    <span id="templateStatusText" class="x-small fw-bold {{ 'text-warning' if approval_settings.template else 'text-success' }}">
+                                        {{ '需人工审核' if approval_settings.template else '自动发布' }}
+                                    </span>
+                                </div>
+                                <div class="form-check form-switch m-0">
+                                    <input class="form-check-input ios-switch" type="checkbox"
+                                           id="templateToggle"
+                                           onchange="updateApprovalSetting('template', this)"
+                                           {% if approval_settings.template %}checked{% endif %}>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -349,7 +395,7 @@
 </div>
 
 <script>
-    // Toggle Global Setting
+    // Toggle Global Setting (敏感内容)
     function updateGlobalSetting(checkbox) {
         const isChecked = checkbox.checked;
         const statusText = document.getElementById('globalStatusText');
@@ -361,6 +407,32 @@
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
             body: JSON.stringify({ allow_toggle: isChecked })
         }).catch(() => { checkbox.checked = !isChecked; alert('设置保存失败'); });
+    }
+
+    // Toggle Approval Setting (审核策略)
+    function updateApprovalSetting(type, checkbox) {
+        const isChecked = checkbox.checked;
+        const statusText = document.getElementById(type + 'StatusText');
+
+        // 更新界面文字状态
+        statusText.textContent = isChecked ? '需人工审核' : '自动发布';
+        statusText.className = `x-small fw-bold ${isChecked ? 'text-warning' : 'text-success'}`;
+
+        // 构建请求数据
+        let payload = {};
+        if (type === 'gallery') payload = { approval_gallery: isChecked };
+        if (type === 'template') payload = { approval_template: isChecked };
+
+        // 发送请求
+        fetch("{{ url_for('admin.update_global_setting') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+            body: JSON.stringify(payload)
+        }).catch(err => {
+            checkbox.checked = !isChecked; // 回滚状态
+            alert('设置保存失败');
+            console.error(err);
+        });
     }
 
     // Toggle Tag Sensitive
