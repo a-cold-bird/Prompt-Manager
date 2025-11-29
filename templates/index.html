@@ -124,15 +124,36 @@
 
         {% if pagination.pages > 1 %}
         <div class="pagination-container">
-            <nav class="pagination-capsule">
-                <a class="page-btn {% if not pagination.has_prev %}disabled{% endif %}"
-                   href="{{ url_for('public.index', page=pagination.prev_num, tag=active_tag, q=active_search, sort=current_sort) }}">
-                    <i class="bi bi-chevron-left"></i>
+            <nav class="pagination-modern">
+                {# --- 上一页按钮 --- #}
+                <a class="page-link-item {% if not pagination.has_prev %}disabled{% endif %}"
+                   href="{{ url_for('public.index', page=pagination.prev_num, tag=active_tag, q=active_search, sort=current_sort) }}"
+                   title="Previous">
+                    <i class="bi bi-chevron-left small"></i>
                 </a>
-                <span class="page-btn active mx-2">{{ pagination.page }} / {{ pagination.pages }}</span>
-                <a class="page-btn {% if not pagination.has_next %}disabled{% endif %}"
-                   href="{{ url_for('public.index', page=pagination.next_num, tag=active_tag, q=active_search, sort=current_sort) }}">
-                    <i class="bi bi-chevron-right"></i>
+
+                {# --- 智能页码循环 --- #}
+                {# iter_pages : left_edge=1(左边保留1个), right_edge=1(右边保留1个), left_current=1(当前页左边保留1个), right_current=1(当前页右边保留1个) #}
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num != pagination.page %}
+                            <a class="page-link-item"
+                               href="{{ url_for('public.index', page=page_num, tag=active_tag, q=active_search, sort=current_sort) }}">
+                                {{ page_num }}
+                            </a>
+                        {% else %}
+                            <span class="page-link-item active">{{ page_num }}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="page-ellipsis"><i class="bi bi-three-dots"></i></span>
+                    {% endif %}
+                {% endfor %}
+
+                {# --- 下一页按钮 --- #}
+                <a class="page-link-item {% if not pagination.has_next %}disabled{% endif %}"
+                   href="{{ url_for('public.index', page=pagination.next_num, tag=active_tag, q=active_search, sort=current_sort) }}"
+                   title="Next">
+                    <i class="bi bi-chevron-right small"></i>
                 </a>
             </nav>
         </div>
