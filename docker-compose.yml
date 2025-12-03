@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
   web:
-    image: vioaki/prompt-manager:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: prompt-manager:local
     container_name: prompt-manager
 
     env_file: .env

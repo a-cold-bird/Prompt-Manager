@@ -89,7 +89,6 @@ Thumbs.db
 Desktop.ini
 
 # Docker
-*.dockerignore
 docker-compose.override.yml
 
 # Backup & Export files
