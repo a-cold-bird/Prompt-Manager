@@ -42,7 +42,7 @@
             <input class="position-absolute top-0 start-0 w-100 h-100 opacity-0" type="file" id="mainImageInput" name="{{ 'new_image' if mode == 'edit' else 'image' }}" accept="image/*" {{ 'required' if mode == 'create' else '' }}>
 
             <div id="mainPlaceholder" class="py-5 d-flex flex-column align-items-center justify-content-center h-100 pointer-events-none {{ 'd-none' if image else '' }}">
-                <div class="mb-4 upload-icon-circle bg-light text-primary">
+                <div class="mb-4 upload-icon-circle text-primary" style="background: var(--btn-bg);">
                     <i class="bi bi-cloud-arrow-up-fill"></i>
                 </div>
                 <div class="fw-bold fs-5 mb-1" style="color: var(--text-primary);">拖拽或点击上传</div>
@@ -151,7 +151,7 @@
 
     <div class="mb-5 animate-up" style="animation-delay: 0.4s;">
         <label class="form-label-apple">标签 <span class="label-badge optional">选填</span></label>
-        <div class="tag-container shadow-sm bg-white" id="tagWrapper">
+        <div class="tag-container shadow-sm" id="tagWrapper">
             <input type="text" id="tagInput" class="tag-input" placeholder="输入标签后回车..." autocomplete="off">
         </div>
         <input type="hidden" name="tags" id="realTagsInput">
@@ -208,7 +208,7 @@
     bottom: 3px;
     left: 3px;
     width: calc(50% - 3px);
-    background: #ffffff;
+    background: var(--sidebar-bg);
     border-radius: 50rem;
     box-shadow: 0 2px 6px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.05);
     z-index: 1;
@@ -216,7 +216,6 @@
 }
 
 [data-theme="dark"] .segmented-control-capsule .indicator {
-    background: #636366;
     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 

@@ -18,6 +18,16 @@
 
     <link href="/static/css/style.css" rel="stylesheet">
 
+    <script>
+        // 立即应用主题，避免页面加载时的白色闪烁
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            // 同时设置一个标记，让后续脚本知道主题已初始化
+            window.__themeInitialized = savedTheme;
+        })();
+    </script>
+
     <style>
         #nprogress .bar { background: #0071e3 !important; height: 3px !important; }
         #nprogress .peg { box-shadow: 0 0 10px #0071e3, 0 0 5px #0071e3 !important; }
@@ -94,7 +104,32 @@
         <script src="https://cdn.bootcdn.net/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
     {% endif %}
 
+    <div class="theme-toggle" onclick="toggleTheme()" title="Switch Theme">
+        <i class="bi" id="themeIcon"></i>
+    </div>
+
     <script>
+        // Theme toggle functions
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const target = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', target);
+            localStorage.setItem('theme', target);
+            updateThemeIcon(target);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('themeIcon');
+            // 亮色主题显示太阳，暗色主题显示月亮
+            if(icon) icon.className = theme === 'dark' ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill';
+        }
+
+        // 立即更新图标，使用之前初始化的主题
+        (function() {
+            const theme = window.__themeInitialized || 'light';
+            updateThemeIcon(theme);
+        })();
+
         setTimeout(() => { document.querySelectorAll('.alert').forEach(el => el.remove()); }, 3000);
 
         window.UserContext = { isAdmin: {{ current_user.is_authenticated | tojson }} };

@@ -13,23 +13,23 @@
         </div>
 
         <div class="d-flex align-items-center gap-3 mt-3 mt-md-0">
-             <button class="btn btn-white bg-white bg-opacity-60 border-0 shadow-sm rounded-pill px-4 py-2 fw-bold text-secondary transition-bg d-flex align-items-center"
+             <button class="btn border-0 shadow-sm rounded-pill px-4 py-2 fw-bold text-secondary transition-bg d-flex align-items-center" style="background: var(--btn-bg);"
                      data-bs-toggle="modal" data-bs-target="#tagsModal">
                 <i class="bi bi-tags-fill me-2 text-primary opacity-75"></i>标签管理
              </button>
 
-             <div class="d-flex align-items-center ps-1 pe-3 py-1 bg-white bg-opacity-60 shadow-sm rounded-pill">
+             <div class="d-flex align-items-center ps-1 pe-3 py-1 shadow-sm rounded-pill" style="background: var(--btn-bg);">
                  <div class="rounded-circle bg-secondary bg-opacity-10 d-flex align-items-center justify-content-center me-2"
                       style="width: 32px; height: 32px;">
                      <i class="bi bi-person-fill text-secondary"></i>
                  </div>
-                 <span class="small fw-bold text-dark">{{ current_user.username }}</span>
+                 <span class="small fw-bold" style="color: var(--text-primary);">{{ current_user.username }}</span>
              </div>
         </div>
     </div>
 
     <div class="d-flex justify-content-center mb-5 animate-up" style="animation-delay: 0.1s;">
-        <nav class="segmented-control shadow-sm bg-white bg-opacity-50 p-1">
+        <nav class="segmented-control shadow-sm p-1" style="background: var(--btn-bg);">
             <a href="{{ url_for('admin.dashboard', tab='pending') }}"
                class="nav-link px-4 py-2 text-decoration-none {{ 'active' if active_tab == 'pending' else '' }}">
                 待审核
@@ -73,7 +73,7 @@
                             <div class="pending-img-zone">
                                 <img src="{{ img.thumbnail_path or img.file_path }}" loading="lazy">
                                 <div class="position-absolute top-0 start-0 m-3">
-                                    <span class="badge bg-warning text-dark bg-opacity-75 backdrop-blur shadow-sm border border-white border-opacity-25">
+                                    <span class="badge bg-warning bg-opacity-75 backdrop-blur shadow-sm border border-white border-opacity-25" style="color: #000;">
                                         Pending
                                     </span>
                                 </div>
@@ -90,7 +90,7 @@
                                     {{ img.author or 'Anonymous' }}
                                 </div>
 
-                                <div class="bg-light bg-opacity-50 rounded-3 p-3 mb-4 flex-grow-1 border border-secondary border-opacity-5">
+                                <div class="rounded-3 p-3 mb-4 flex-grow-1 border border-secondary border-opacity-5" style="background: var(--btn-bg);">
                                     <p class="small text-secondary mb-0 text-clamp-3 font-monospace" style="font-size: 0.8rem; line-height: 1.6;">
                                         {{ img.prompt or 'No prompt provided...' }}
                                     </p>
@@ -106,13 +106,13 @@
                                     </form>
 
                                     <a href="{{ url_for('admin.edit_image', img_id=img.id, next=request.full_path) }}"
-                                       class="btn-circle-icon bg-light text-secondary" title="编辑">
+                                       class="btn-circle-icon text-secondary" style="background: var(--btn-bg);" title="编辑">
                                         <i class="bi bi-pencil-fill" style="font-size: 0.9rem;"></i>
                                     </a>
 
                                     <form action="{{ url_for('admin.delete', img_id=img.id) }}" method="POST" class="m-0" onsubmit="return confirm('确定删除？')">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                        <button class="btn-circle-icon bg-light text-secondary hover-danger" title="删除">
+                                        <button class="btn-circle-icon text-secondary hover-danger" style="background: var(--btn-bg);" title="删除">
                                             <i class="bi bi-trash-fill" style="font-size: 0.9rem;"></i>
                                         </button>
                                     </form>
@@ -159,7 +159,7 @@
                     </a>
 
                     <div class="flex-grow-1 min-w-0 pe-4 d-flex flex-column justify-content-center">
-                        <h6 class="fw-bold mb-1 text-truncate text-dark" style="font-size: 1rem;">{{ img.title }}</h6>
+                        <h6 class="fw-bold mb-1 text-truncate" style="font-size: 1rem; color: var(--text-primary);">{{ img.title }}</h6>
                         <div class="d-flex align-items-center text-secondary small text-truncate gap-3">
                             <span><i class="bi bi-person me-1 opacity-50"></i>{{ img.author }}</span>
                             <span class="opacity-50">&bull;</span>
@@ -193,7 +193,7 @@
                 </div>
                 {% else %}
                 <div class="text-center py-5">
-                    <div class="d-inline-block p-4 rounded-circle bg-light mb-3">
+                    <div class="d-inline-block p-4 rounded-circle mb-3" style="background: var(--btn-bg);">
                         <i class="bi bi-inbox text-secondary opacity-25 fs-1"></i>
                     </div>
                     <p class="text-muted small">暂无相关数据</p>
@@ -264,7 +264,7 @@
                         <div class="row g-4 pt-2">
                             <div class="col-md-6 d-flex align-items-center justify-content-between border-end border-secondary border-opacity-10 pe-md-4">
                                 <div>
-                                    <span class="fw-bold d-block text-dark">画廊 (Gallery)</span>
+                                    <span class="fw-bold d-block" style="color: var(--text-primary);">画廊 (Gallery)</span>
                                     <span id="galleryStatusText" class="x-small fw-bold {{ 'text-warning' if approval_settings.gallery else 'text-success' }}">
                                         {{ '需人工审核' if approval_settings.gallery else '自动发布' }}
                                     </span>
@@ -279,7 +279,7 @@
 
                             <div class="col-md-6 d-flex align-items-center justify-content-between ps-md-4">
                                 <div>
-                                    <span class="fw-bold d-block text-dark">模板 (Template)</span>
+                                    <span class="fw-bold d-block" style="color: var(--text-primary);">模板 (Template)</span>
                                     <span id="templateStatusText" class="x-small fw-bold {{ 'text-warning' if approval_settings.template else 'text-success' }}">
                                         {{ '需人工审核' if approval_settings.template else '自动发布' }}
                                     </span>
@@ -303,7 +303,7 @@
                         <h5 class="fw-bold mb-2">数据备份 (Backup)</h5>
                         <p class="text-secondary small mb-4">生成包含所有图片原图、Prompt 和元数据的完整 ZIP 归档。</p>
 
-                        <div class="bg-white bg-opacity-50 rounded-3 p-3 mb-4 border border-secondary border-opacity-10">
+                        <div class="rounded-3 p-3 mb-4 border border-secondary border-opacity-10" style="background: var(--btn-bg);">
                             <div class="d-flex justify-content-between mb-2 small">
                                 <span class="text-muted">Images</span>
                                 <span class="fw-bold">{{ stats.total_images }}</span>
@@ -353,25 +353,25 @@
 
 <div class="modal fade" id="tagsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content glass-panel border-0 shadow-lg overflow-hidden" style="background: rgba(255,255,255,0.95);">
+        <div class="modal-content glass-panel border-0 shadow-lg overflow-hidden" style="background: var(--modal-bg);">
             <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
                 <div>
                     <h4 class="fw-bold mb-1">标签管理</h4>
                     <p class="text-secondary small mb-0">Sensitivity & Renaming</p>
                 </div>
-                <button type="button" class="btn-close bg-light rounded-circle p-2" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close rounded-circle p-2" data-bs-dismiss="modal" style="background: var(--btn-bg);"></button>
             </div>
             <div class="modal-body custom-scrollbar p-4" style="max-height: 60vh; overflow-y: auto;">
                 <div class="d-flex flex-column gap-2">
                     {% for tag in all_tags %}
-                    <div class="list-row-item py-2 px-3 bg-white border shadow-sm">
+                    <div class="list-row-item py-2 px-3 border shadow-sm" style="background: var(--sidebar-bg);">
                         <div class="flex-grow-1 d-flex align-items-center">
                             <i class="bi bi-hash text-secondary opacity-50 me-2"></i>
                             <form action="{{ url_for('admin.update_tag') }}" method="POST" class="flex-grow-1">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <input type="hidden" name="tag_id" value="{{ tag.id }}"/>
                                 <input type="text" name="new_name" value="{{ tag.name }}"
-                                       class="form-control border-0 bg-transparent fw-bold text-dark p-0 shadow-none"
+                                       class="form-control border-0 bg-transparent fw-bold p-0 shadow-none" style="color: var(--text-primary);"
                                        style="font-size: 0.95rem;"
                                        onchange="this.form.submit()">
                             </form>

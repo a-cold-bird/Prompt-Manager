@@ -36,8 +36,14 @@
 
 /* --- Global Reset & Helpers --- */
 
-html { scrollbar-gutter: stable; }
-* { box-sizing: border-box; }
+html {
+    scrollbar-gutter: stable;
+    /* 添加主题切换平滑过渡 */
+    transition: background-color 0.3s ease;
+}
+* {
+    box-sizing: border-box;
+}
 html, body { width: 100%; position: relative; max-width: 100vw; }
 
 body {
@@ -46,7 +52,14 @@ body {
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
     padding-right: 0 !important;
-    transition: background-color 0.5s ease, color 0.5s ease;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 为所有元素添加主题切换过渡，避免闪烁 */
+*:not(.art-frame):not(.art-frame *):not(img):not(svg):not(path) {
+    transition-property: background-color, color, border-color;
+    transition-duration: 0.3s;
+    transition-timing-function: ease;
 }
 
 a { text-decoration: none; color: inherit; }
@@ -265,7 +278,7 @@ h1.art-title, h2.art-title {
 }
 
 .theme-toggle {
-    position: fixed; bottom: 30px; right: 30px;
+    position: fixed; bottom: 30px; left: 30px;
     width: 50px; height: 50px; border-radius: 50%;
     background: var(--sidebar-bg); box-shadow: 0 4px 20px rgba(0,0,0,0.15);
     border: 1px solid rgba(128,128,128,0.1);
