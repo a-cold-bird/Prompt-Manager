@@ -28,5 +28,16 @@ ENV FLASK_APP=app.py
 # 暴露端口
 EXPOSE 5000
 
+# 创建启动脚本
+RUN echo '#!/bin/bash\n\
+exec gunicorn \\\n\
+  -w ${GUNICORN_WORKERS:-2} \\\n\
+  -b ${GUNICORN_BIND:-0.0.0.0:5000} \\\n\
+  --threads ${GUNICORN_THREADS:-4} \\\n\
+  --log-level ${GUNICORN_LOG_LEVEL:-info} \\\n\
+  --access-logfile - \\\n\
+  --error-logfile - \\\n\
+  app:app' > /start.sh && chmod +x /start.sh
+
 # 启动命令
-CMD ["gunicorn", "-w", "${GUNICORN_WORKERS:-2}", "-b", "0.0.0.0:5000", "--threads", "${GUNICORN_THREADS:-4}", "--log-level", "${GUNICORN_LOG_LEVEL:-info}", "app:app"]
+CMD ["/start.sh"]
