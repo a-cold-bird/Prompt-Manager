@@ -39,7 +39,23 @@ migrations/
 
 # Environment Variables
 .env
+.env.local
+.env.*.local
 .flaskenv
+
+# SSL/TLS Keys and Certificates
+*.key
+*.pem
+*.crt
+*.csr
+*.p8
+*.pfx
+*.p12
+
+# Secrets and Credentials
+secret*
+credential*
+secrets/
 
 # Logs
 logs/
@@ -108,3 +124,15 @@ coverage.xml
 node_modules/
 package-lock.json
 yarn.lock
+
+# Project-specific files
+feature_list.json
+progress.txt
+IMPORT_GUIDE.md
+
+# Temporary/Test scripts
+fix_paths.py
+import_backup.py
+
+# External repositories
+awesome-nano-banana-pro-prompts/

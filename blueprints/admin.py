@@ -33,7 +33,13 @@ def dashboard():
         )
 
     page = request.args.get('page', 1, type=int)
-    per_page = current_app.config['ADMIN_PER_PAGE']
+    # 支持动态 per_page 参数，否则使用默认配置
+    per_page = request.args.get('per_page', None, type=int)
+    if not per_page:
+        per_page = current_app.config['ADMIN_PER_PAGE']
+    # 限制 per_page 在合理范围内 (6-100)
+    per_page = max(6, min(100, per_page))
+
     approved_pagination = approved_query.order_by(Image.created_at.desc()).paginate(page=page, per_page=per_page)
 
     all_tags = Tag.query.order_by(Tag.name).all()
@@ -291,3 +297,81 @@ def update_global_setting():
     if is_json: return jsonify({'status': 'ok'})
     flash('系统设置已更新')
     return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+
+@bp.route('/batch/delete', methods=['POST'])
+@login_required
+def batch_delete():
+    """批量删除图片"""
+    data = request.get_json()
+    img_ids = data.get('image_ids', [])
+
+    if not img_ids:
+        return jsonify({'status': 'error', 'message': '未选择任何图片'}), 400
+
+    try:
+        deleted_count = 0
+        for img_id in img_ids:
+            if ImageService.delete_image(img_id):
+                deleted_count += 1
+
+        return jsonify({
+            'status': 'ok',
+            'deleted': deleted_count,
+            'message': f'成功删除 {deleted_count} 张图片'
+        })
+    except Exception as e:
+        current_app.logger.error(f"Batch delete error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@bp.route('/batch/tags', methods=['POST'])
+@login_required
+def batch_modify_tags():
+    """批量修改标签"""
+    data = request.get_json()
+    img_ids = data.get('image_ids', [])
+    tag_ids = data.get('tag_ids', [])
+    action = data.get('action', 'add')  # 'add' 或 'remove'
+
+    if not img_ids or not tag_ids:
+        return jsonify({'status': 'error', 'message': '缺少必要参数'}), 400
+
+    try:
+        # 获取标签对象
+        tags = Tag.query.filter(Tag.id.in_(tag_ids)).all()
+        if not tags:
+            return jsonify({'status': 'error', 'message': '标签不存在'}), 404
+
+        # 批量修改
+        modified_count = 0
+        for img_id in img_ids:
+            img = db.session.get(Image, img_id)
+            if not img:
+                continue
+
+            if action == 'add':
+                # 添加标签（避免重复）
+                for tag in tags:
+                    if tag not in img.tags:
+                        img.tags.append(tag)
+                        modified_count += 1
+            elif action == 'remove':
+                # 删除标签
+                for tag in tags:
+                    if tag in img.tags:
+                        img.tags.remove(tag)
+                        modified_count += 1
+
+        db.session.commit()
+
+        action_text = '添加' if action == 'add' else '删除'
+        return jsonify({
+            'status': 'ok',
+            'modified': len(img_ids),
+            'message': f'成功为 {len(img_ids)} 张图片{action_text}标签'
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Batch modify tags error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500

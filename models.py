@@ -77,6 +77,9 @@ class Image(db.Model):
             if path.startswith(('http://', 'https://')):
                 return path
             # 本地路径，拼接当前请求的域名
+            # 确保路径以 / 开头
+            if not path.startswith('/'):
+                path = '/' + path
             return request.url_root.rstrip('/') + path
 
         # 构造参考图列表

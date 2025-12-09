@@ -16,9 +16,10 @@
             </a>
 
             <div class="nav-category mt-4">Tags</div>
-            {% for tag in all_tags %}
-            <a href="{{ url_for(request.endpoint, tag=tag.name) }}" class="nav-item-apple {{ 'active' if active_tag == tag.name else '' }}">
-                <i class="bi bi-hash me-3 small opacity-50"></i>{{ tag.name }}
+            {% for tag_item in all_tags %}
+            <a href="{{ url_for(request.endpoint, tag=tag_item.tag.name) }}" class="nav-item-apple {{ 'active' if active_tag == tag_item.tag.name else '' }}">
+                <i class="bi bi-hash me-3 small opacity-50"></i>{{ tag_item.tag.name }}
+                <span class="tag-count">{{ tag_item.count }}</span>
             </a>
             {% endfor %}
         </div>
@@ -26,18 +27,20 @@
 
     <div class="flex-grow-1 transition-bg" style="background: var(--bg-color); overflow-x: hidden;">
 
-        <div class="px-4 px-lg-5 pt-5 pb-4 d-flex flex-wrap justify-content-between align-items-end">
-            <div class="mb-3 mb-md-0">
-                <h1 class="fw-bold mb-1 art-title" style="font-size: 2.5rem; letter-spacing: -1px;">
-                    {{ active_tag or ('Templates' if request.endpoint == 'public.templates_index' else 'Collection') }}
-                </h1>
-                <p class="m-0 small" style="color: var(--text-secondary);">
-                    {{ pagination.total }} pieces of art
-                </p>
-            </div>
+        <!-- 顶栏：标题 + 搜索栏 + 按钮 -->
+        <div class="px-4 px-lg-5 pt-3 pb-3">
+            <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                <div>
+                    <h1 class="fw-bold mb-0 art-title" style="font-size: 2.2rem; letter-spacing: -1px;">
+                        {{ active_tag or ('Templates' if request.endpoint == 'public.templates_index' else 'Collection') }}
+                    </h1>
+                    <p class="m-0 small" style="color: var(--text-secondary); font-size: 0.85rem;">
+                        {{ pagination.total }} pieces of art
+                    </p>
+                </div>
 
-            <div class="d-block w-100 w-md-auto mt-2 mt-md-0" style="max-width: 400px;">
-                <form action="{{ url_for(request.endpoint) }}" method="get">
+                <!-- 搜索栏 (嵌入顶栏) -->
+                <form action="{{ url_for(request.endpoint) }}" method="get" class="flex-shrink-0" style="min-width: 200px; max-width: 280px;">
                     <div class="position-relative">
                         <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
                         <input type="text" name="q" value="{{ active_search or '' }}"
@@ -48,29 +51,56 @@
                         {% if active_tag %}
                         <input type="hidden" name="tag" value="{{ active_tag }}">
                         {% endif %}
+                        {% if active_type %}
+                        <input type="hidden" name="type" value="{{ active_type }}">
+                        {% endif %}
                     </div>
                 </form>
+            </div>
 
-                <div class="w-100 d-flex justify-content-end mt-3 px-1">
-                    <nav class="segmented-control shadow-sm">
-                        <a href="{{ url_for(request.endpoint, sort='date', tag=active_tag, q=active_search) }}"
-                           class="nav-link {{ 'active' if current_sort == 'date' else '' }}">
-                           <i class="bi bi-clock-history"></i> <span>最新</span>
-                        </a>
-                        <a href="{{ url_for(request.endpoint, sort='hot', tag=active_tag, q=active_search) }}"
-                           class="nav-link {{ 'active' if current_sort == 'hot' else '' }}">
-                           <i class="bi bi-fire"></i> <span>热度</span>
-                        </a>
-                        <a href="{{ url_for(request.endpoint, sort='random', tag=active_tag, q=active_search) }}"
-                           class="nav-link {{ 'active' if current_sort == 'random' else '' }}">
-                           <i class="bi bi-shuffle"></i> <span>随机</span>
-                        </a>
-                    </nav>
-                </div>
+            <!-- 过滤和排序按钮组 -->
+            <div class="d-flex justify-content-start gap-2 flex-wrap mt-2">
+                <!-- 图片类型过滤器 -->
+                <nav class="segmented-control segmented-control-compact">
+                    <a href="{{ url_for(request.endpoint, sort=current_sort, tag=active_tag, q=active_search) }}"
+                       class="nav-link {{ 'active' if not active_type else '' }}"
+                       title="Show all image types">
+                       <i class="bi bi-images"></i><span>All</span>
+                    </a>
+                    <a href="{{ url_for(request.endpoint, sort=current_sort, tag=active_tag, q=active_search, type='text2img') }}"
+                       class="nav-link {{ 'active' if active_type == 'text2img' else '' }}"
+                       title="Text to Image">
+                       <i class="bi bi-chat-dots"></i><span>T2I</span>
+                    </a>
+                    <a href="{{ url_for(request.endpoint, sort=current_sort, tag=active_tag, q=active_search, type='img2img') }}"
+                       class="nav-link {{ 'active' if active_type == 'img2img' else '' }}"
+                       title="Image to Image">
+                       <i class="bi bi-image"></i><span>I2I</span>
+                    </a>
+                </nav>
+
+                <!-- 排序控制 -->
+                <nav class="segmented-control segmented-control-compact">
+                    <a href="{{ url_for(request.endpoint, sort='date', tag=active_tag, q=active_search, type=active_type) }}"
+                       class="nav-link {{ 'active' if current_sort == 'date' else '' }}"
+                       title="Sort by latest">
+                       <i class="bi bi-clock-history"></i><span>Latest</span>
+                    </a>
+                    <a href="{{ url_for(request.endpoint, sort='hot', tag=active_tag, q=active_search, type=active_type) }}"
+                       class="nav-link {{ 'active' if current_sort == 'hot' else '' }}"
+                       title="Sort by trending">
+                       <i class="bi bi-fire"></i><span>Trending</span>
+                    </a>
+                    <a href="{{ url_for(request.endpoint, sort='random', tag=active_tag, q=active_search, type=active_type) }}"
+                       class="nav-link {{ 'active' if current_sort == 'random' else '' }}"
+                       title="Show random">
+                       <i class="bi bi-shuffle"></i><span>Random</span>
+                    </a>
+                </nav>
             </div>
         </div>
 
-        <div class="px-2 px-md-4 px-lg-5 pb-5">
+        <div class="px-2 px-md-4 px-lg-5 pt-2 pb-5">
             <div class="gallery-masonry">
                 {% for img in images %}
                 <div class="gallery-item group">
@@ -81,9 +111,9 @@
                         </script>
 
                         {% if config.USE_THUMBNAIL_IN_PREVIEW %}
-                            <img src="{{ img.thumbnail_path or img.file_path }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
+                            <img src="{{ '/' + (img.thumbnail_path or img.file_path) }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
                         {% else %}
-                            <img src="{{ img.file_path }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
+                            <img src="{{ '/' + img.file_path }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
                         {% endif %}
 
                         <span class="position-absolute top-0 end-0 m-2 badge bg-black bg-opacity-25 backdrop-blur rounded-1 fw-normal"
@@ -128,7 +158,7 @@
         <div class="pagination-container">
             <nav class="pagination-modern">
                 <a class="page-link-item {% if not pagination.has_prev %}disabled{% endif %}"
-                   href="{{ url_for(request.endpoint, page=pagination.prev_num, tag=active_tag, q=active_search, sort=current_sort) }}"
+                   href="{{ url_for(request.endpoint, page=pagination.prev_num, tag=active_tag, q=active_search, sort=current_sort, type=active_type) }}"
                    title="Previous">
                     <i class="bi bi-chevron-left small"></i>
                 </a>
@@ -137,7 +167,7 @@
                     {% if page_num %}
                         {% if page_num != pagination.page %}
                             <a class="page-link-item"
-                               href="{{ url_for(request.endpoint, page=page_num, tag=active_tag, q=active_search, sort=current_sort) }}">
+                               href="{{ url_for(request.endpoint, page=page_num, tag=active_tag, q=active_search, sort=current_sort, type=active_type) }}">
                                 {{ page_num }}
                             </a>
                         {% else %}
@@ -149,7 +179,7 @@
                 {% endfor %}
 
                 <a class="page-link-item {% if not pagination.has_next %}disabled{% endif %}"
-                   href="{{ url_for(request.endpoint, page=pagination.next_num, tag=active_tag, q=active_search, sort=current_sort) }}"
+                   href="{{ url_for(request.endpoint, page=pagination.next_num, tag=active_tag, q=active_search, sort=current_sort, type=active_type) }}"
                    title="Next">
                     <i class="bi bi-chevron-right small"></i>
                 </a>
@@ -162,7 +192,7 @@
 
 <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileTagSidebar" style="background: var(--sidebar-bg);">
     <div class="offcanvas-header border-bottom">
-        <h5 class="offcanvas-title fw-bold">标签筛选</h5>
+        <h5 class="offcanvas-title fw-bold">筛选</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
     </div>
     <div class="offcanvas-body custom-scrollbar">
@@ -170,10 +200,23 @@
         <a href="{{ url_for(request.endpoint) }}" class="nav-item-apple {{ 'active' if not active_tag else '' }}">
             <i class="bi bi-grid-fill me-3 small"></i>全部作品
         </a>
-        <div class="nav-category mt-4">Tags</div>
-        {% for tag in all_tags %}
-        <a href="{{ url_for(request.endpoint, tag=tag.name) }}" class="nav-item-apple {{ 'active' if active_tag == tag.name else '' }}">
-            <i class="bi bi-hash me-3 small opacity-50"></i>{{ tag.name }}
+
+        <div class="nav-category mt-4">图片类型</div>
+        <a href="{{ url_for(request.endpoint, sort=current_sort, q=active_search) }}" class="nav-item-apple {{ 'active' if not active_type else '' }}">
+            <i class="bi bi-images me-3 small opacity-50"></i>全部类型
+        </a>
+        <a href="{{ url_for(request.endpoint, sort=current_sort, q=active_search, type='text2img') }}" class="nav-item-apple {{ 'active' if active_type == 'text2img' else '' }}">
+            <i class="bi bi-chat-dots me-3 small opacity-50"></i>Text to Image (T2I)
+        </a>
+        <a href="{{ url_for(request.endpoint, sort=current_sort, q=active_search, type='img2img') }}" class="nav-item-apple {{ 'active' if active_type == 'img2img' else '' }}">
+            <i class="bi bi-image me-3 small opacity-50"></i>Image to Image (I2I)
+        </a>
+
+        <div class="nav-category mt-4">标签</div>
+        {% for tag_item in all_tags %}
+        <a href="{{ url_for(request.endpoint, tag=tag_item.tag.name, type=active_type) }}" class="nav-item-apple {{ 'active' if active_tag == tag_item.tag.name else '' }}">
+            <i class="bi bi-hash me-3 small opacity-50"></i>{{ tag_item.tag.name }}
+            <span class="tag-count">{{ tag_item.count }}</span>
         </a>
         {% endfor %}
     </div>

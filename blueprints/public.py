@@ -28,6 +28,7 @@ def _get_common_data(category_filter=None):
     tag_filter = request.args.get('tag', '').strip()
     search_query = request.args.get('q', '').strip()
     sort_by = request.args.get('sort', 'date')
+    type_filter = request.args.get('type', '').strip()  # 图片类型过滤: text2img, img2img
     show_sensitive = can_see_sensitive()
 
     # 构建图片查询
@@ -41,6 +42,9 @@ def _get_common_data(category_filter=None):
 
     if tag_filter:
         query = query.filter(Image.tags.any(name=tag_filter))
+
+    if type_filter and type_filter in ['text2img', 'img2img', 'txt2img']:
+        query = query.filter_by(type=type_filter)
 
     if search_query:
         query = query.filter(
@@ -59,8 +63,11 @@ def _get_common_data(category_filter=None):
 
     pagination = query.paginate(page=page, per_page=current_app.config['ITEMS_PER_PAGE'])
 
-    # 构建标签筛选列表
-    tags_query = db.session.query(Tag).join(Tag.images).filter(Image.status == 'approved')
+    # 构建标签筛选列表，并统计每个标签的图片数量
+    tags_query = db.session.query(
+        Tag,
+        func.count(Image.id).label('image_count')
+    ).join(Tag.images).filter(Image.status == 'approved')
 
     if category_filter:
         tags_query = tags_query.filter(Image.category == category_filter)
@@ -68,13 +75,17 @@ def _get_common_data(category_filter=None):
     if not show_sensitive:
         tags_query = tags_query.filter(Tag.is_sensitive == False)
 
-    all_tags = tags_query.group_by(Tag.id).order_by(Tag.name).all()
+    tags_with_counts = tags_query.group_by(Tag.id).order_by(Tag.name).all()
+
+    # 将结果转换为更易用的格式
+    all_tags = [{'tag': tag, 'count': count} for tag, count in tags_with_counts]
 
     return {
         'images': pagination.items,
         'pagination': pagination,
         'active_tag': tag_filter,
         'active_search': search_query,
+        'active_type': type_filter,
         'all_tags': all_tags,
         'current_sort': sort_by
     }

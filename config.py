@@ -9,6 +9,9 @@ class Config:
     """应用全局配置"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-please-change-in-prod'
 
+    # 模板自动重载 (开发环境)
+    TEMPLATES_AUTO_RELOAD = True
+
     # 数据库配置
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
                               'sqlite:///' + os.path.join(basedir, 'data.sqlite')

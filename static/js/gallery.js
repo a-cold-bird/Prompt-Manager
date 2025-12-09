@@ -3,6 +3,9 @@
  * 画廊页面核心交互逻辑：详情弹窗、变量解析、交互式Prompt、统计打点。
  */
 
+// --- Global Constants ---
+const PROMPT_VAR_REGEX = /\{\{(.*?)\}\}/g;
+
 // --- Global State for Prompt Variables ---
 window.currentVars = {};
 window.rawPrompt = "";
@@ -114,9 +117,15 @@ function renderOtherDetails(data) {
     // Tags
     const tagsContainer = document.getElementById('modalTags');
     tagsContainer.innerHTML = '';
+
+    // 批量构建 HTML，避免多次重排
+    let tagsHtml = '';
     data.tags.forEach(tag => {
-        tagsContainer.innerHTML += `<span class="badge rounded-pill fw-normal border me-1" style="background:var(--btn-bg); color:var(--text-primary); border-color: rgba(128,128,128,0.2) !important;">${tag}</span>`;
+        const escapedTag = document.createElement('span');
+        escapedTag.textContent = tag;
+        tagsHtml += `<span class="badge rounded-pill fw-normal border me-1" style="background:var(--btn-bg); color:var(--text-primary); border-color: rgba(128,128,128,0.2) !important;">${escapedTag.innerHTML}</span>`;
     });
+    tagsContainer.innerHTML = tagsHtml;
 
     // Refs (参考图)
     const refsSection = document.getElementById('modalRefsSection');
@@ -212,11 +221,10 @@ window.updateVar = function(name, value) {
 
 window.copyModalPrompt = function() {
     let textToCopy = window.rawPrompt;
-    const regex = /\{\{(.*?)\}\}/g;
 
     // 执行最终替换：将 {{key}} 替换为用户输入的值
-    if (regex.test(textToCopy)) {
-        textToCopy = textToCopy.replace(regex, (match, p1) => {
+    if (PROMPT_VAR_REGEX.test(textToCopy)) {
+        textToCopy = textToCopy.replace(PROMPT_VAR_REGEX, (match, p1) => {
             const varName = p1.trim();
             const userValue = window.currentVars[varName];
             // 策略：如果用户填了值就替换，没填就保留 {{key}} 方便后续手动处理

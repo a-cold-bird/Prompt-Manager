@@ -71,7 +71,7 @@
                     <div class="col">
                         <div class="pending-gallery-card">
                             <div class="pending-img-zone">
-                                <img src="{{ img.thumbnail_path or img.file_path }}" loading="lazy">
+                                <img src="{{ '/' + (img.thumbnail_path or img.file_path) }}" loading="lazy">
                                 <div class="position-absolute top-0 start-0 m-3">
                                     <span class="badge bg-warning bg-opacity-75 backdrop-blur shadow-sm border border-white border-opacity-25" style="color: #000;">
                                         Pending
@@ -135,9 +135,19 @@
 
         <div class="tab-pane fade {{ 'show active' if active_tab == 'approved' else '' }}">
 
+            <!-- 顶部工具栏 - 现代化设计 -->
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3 px-2">
-                <div class="text-secondary small fw-bold text-uppercase ls-1">
-                    Library ({{ approved_pagination.total }})
+                <div class="d-flex align-items-center gap-3">
+                    <!-- 全选复选框 - Windows风格 -->
+                    <input type="checkbox"
+                           class="form-check-input modern-checkbox m-0"
+                           id="selectAllCheckbox"
+                           onchange="toggleSelectAll()"
+                           title="全选"
+                           style="width: 18px; height: 18px; cursor: pointer;">
+                    <div class="text-secondary small fw-bold text-uppercase ls-1">
+                        Library ({{ approved_pagination.total }})
+                    </div>
                 </div>
                 <form action="{{ url_for('admin.dashboard') }}" method="get" class="position-relative flex-grow-1 flex-md-grow-0" style="min-width: 280px;">
                     <input type="hidden" name="tab" value="approved">
@@ -148,15 +158,47 @@
                 </form>
             </div>
 
+            <!-- 批量操作工具栏 - 精简版 -->
+            <div id="batchToolbar" class="batch-toolbar mb-3 px-2">
+                <div class="glass-panel py-2 px-3 d-flex justify-content-between align-items-center shadow-sm border border-primary border-opacity-25">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-primary fw-bold" id="selectedCount">0</span>
+                        <span class="text-secondary small">项已选</span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 ms-2 text-decoration-none" onclick="clearSelection()">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1 batch-action-btn"
+                                onclick="showBatchTagModal()">
+                            <i class="bi bi-tags me-1"></i>标签
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1 batch-action-btn"
+                                onclick="batchDelete()">
+                            <i class="bi bi-trash me-1"></i>删除
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="admin-list-container">
                 {% for img in approved_pagination.items %}
-                <div class="admin-card-row">
-                    <a href="{{ url_for('admin.edit_image', img_id=img.id, next=request.full_path) }}" class="flex-shrink-0 position-relative group">
-                        <img src="{{ img.thumbnail_path or img.file_path }}" class="admin-thumb">
-                        {% if img.type == 'img2img' %}
-                        <span class="position-absolute bottom-0 end-0 badge bg-black bg-opacity-50 border border-white border-opacity-25 rounded-pill m-1" style="font-size: 0.5rem;">I2I</span>
-                        {% endif %}
-                    </a>
+                <div class="admin-card-row modern-list-item">
+                    <div class="flex-shrink-0 d-flex align-items-center gap-2">
+                        <!-- 现代化复选框 - 默认隐藏 -->
+                        <input type="checkbox" class="form-check-input batch-checkbox modern-checkbox m-0 checkbox-hidden"
+                               data-img-id="{{ img.id }}"
+                               style="width: 18px; height: 18px; cursor: pointer;"
+                               onchange="updateBatchSelection()">
+                        <a href="{{ url_for('admin.edit_image', img_id=img.id, next=request.full_path) }}" class="position-relative group thumb-link">
+                            <img src="{{ '/' + (img.thumbnail_path or img.file_path) }}" class="admin-thumb-compact">
+                            {% if img.type == 'img2img' %}
+                            <span class="position-absolute bottom-0 end-0 badge bg-black bg-opacity-50 border border-white border-opacity-25 rounded-pill m-1" style="font-size: 0.5rem;">I2I</span>
+                            {% endif %}
+                            <!-- Hover overlay -->
+                            <div class="thumb-overlay"></div>
+                        </a>
+                    </div>
 
                     <div class="flex-grow-1 min-w-0 pe-4 d-flex flex-column justify-content-center">
                         <h6 class="fw-bold mb-1 text-truncate" style="font-size: 1rem; color: var(--text-primary);">{{ img.title }}</h6>
@@ -201,21 +243,38 @@
                 {% endfor %}
             </div>
 
-            {% if approved_pagination.pages > 1 %}
-            <div class="pagination-container mt-5 mb-4">
-                 <nav class="pagination-capsule">
-                    <a class="page-btn {% if not approved_pagination.has_prev %}disabled{% endif %}"
-                       href="{{ url_for('admin.dashboard', page=approved_pagination.prev_num, tab='approved', q=search_query) }}">
-                        <i class="bi bi-chevron-left"></i>
-                    </a>
-                    <span class="page-btn active mx-1" style="background:transparent; color:var(--text-primary);">{{ approved_pagination.page }} / {{ approved_pagination.pages }}</span>
-                    <a class="page-btn {% if not approved_pagination.has_next %}disabled{% endif %}"
-                       href="{{ url_for('admin.dashboard', page=approved_pagination.next_num, tab='approved', q=search_query) }}">
-                        <i class="bi bi-chevron-right"></i>
-                    </a>
-                 </nav>
+            <div class="pagination-footer mt-5 mb-4 px-2">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <!-- 左侧：每页显示条数 -->
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="perPageSelect" class="small fw-bold text-secondary text-uppercase ls-1 mb-0">每页显示</label>
+                        <select id="perPageSelect" class="form-select form-select-sm"
+                                style="width: auto; background: var(--btn-bg); color: var(--text-primary); border: 1px solid var(--text-secondary); border-opacity: 0.2;"
+                                onchange="changePerPage(this.value)">
+                            <option value="6">6 条</option>
+                            <option value="12" selected>12 条</option>
+                            <option value="24">24 条</option>
+                            <option value="50">50 条</option>
+                        </select>
+                    </div>
+
+                    <!-- 右侧：分页导航 -->
+                    {% if approved_pagination.pages > 1 %}
+                    <nav class="pagination-capsule">
+                        {% set per_page_param = request.args.get('per_page', '') %}
+                        <a class="page-btn {% if not approved_pagination.has_prev %}disabled{% endif %}"
+                           href="{{ url_for('admin.dashboard', page=approved_pagination.prev_num, tab='approved', q=search_query, per_page=per_page_param or '') }}">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                        <span class="page-btn active mx-1" style="background:transparent; color:var(--text-primary);">{{ approved_pagination.page }} / {{ approved_pagination.pages }}</span>
+                        <a class="page-btn {% if not approved_pagination.has_next %}disabled{% endif %}"
+                           href="{{ url_for('admin.dashboard', page=approved_pagination.next_num, tab='approved', q=search_query, per_page=per_page_param or '') }}">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </nav>
+                    {% endif %}
+                </div>
             </div>
-            {% endif %}
         </div>
 
         <div class="tab-pane fade {{ 'show active' if active_tab == 'data-mgmt' else '' }}">
@@ -351,6 +410,46 @@
     </div>
 </div>
 
+<div class="modal fade" id="batchTagModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-panel border-0 shadow-lg overflow-hidden" style="background: var(--modal-bg);">
+            <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
+                <div>
+                    <h4 class="fw-bold mb-1">批量修改标签</h4>
+                    <p class="text-secondary small mb-0">为选中的作品批量添加或删除标签</p>
+                </div>
+                <button type="button" class="btn-close rounded-circle p-2" data-bs-dismiss="modal" style="background: var(--btn-bg);"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-uppercase text-secondary mb-2">操作类型</label>
+                    <select class="form-select" id="batchTagAction" style="background: var(--btn-bg); color: var(--text-primary); border: 1px solid var(--text-secondary); border-opacity: 0.2;">
+                        <option value="add">添加标签</option>
+                        <option value="remove">删除标签</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-uppercase text-secondary mb-2">选择标签 (可多选)</label>
+                    <div class="border rounded-3 p-3 custom-scrollbar" style="background: var(--btn-bg); max-height: 250px; overflow-y: auto;">
+                        {% for tag in all_tags %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input batch-tag-checkbox" type="checkbox" value="{{ tag.id }}" id="btag{{ tag.id }}">
+                            <label class="form-check-label" for="btag{{ tag.id }}" style="color: var(--text-primary);">
+                                {{ tag.name }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="d-flex gap-2 justify-content-end">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4 py-2 fw-bold" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary rounded-pill px-4 py-2 fw-bold" onclick="submitBatchTagModify()">确认修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="tagsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content glass-panel border-0 shadow-lg overflow-hidden" style="background: var(--modal-bg);">
@@ -395,6 +494,211 @@
 </div>
 
 <script>
+    // ===== 分页设置相关函数 =====
+
+    // 改变每页显示条数
+    function changePerPage(perPage) {
+        // 获取当前URL的所有参数
+        const searchParams = new URLSearchParams(window.location.search);
+
+        // 更新每页显示条数和页码
+        searchParams.set('per_page', perPage);
+        searchParams.set('page', '1');  // 重置到第1页
+
+        // 确保 tab 为 'approved'（因为这个selector只在approved标签页显示）
+        if (!searchParams.has('tab')) {
+            searchParams.set('tab', 'approved');
+        }
+
+        window.location.href = '{{ url_for("admin.dashboard") }}?' + searchParams.toString();
+    }
+
+    // 初始化：设置select的值为当前per_page
+    document.addEventListener('DOMContentLoaded', function() {
+        const params = new URLSearchParams(window.location.search);
+        const currentPerPage = params.get('per_page');
+        if (currentPerPage) {
+            const select = document.getElementById('perPageSelect');
+            if (select) {
+                select.value = currentPerPage;
+            }
+        }
+    });
+
+    // ===== 批量操作相关函数 =====
+
+    // 更新批量选择状态
+    function updateBatchSelection() {
+        const checkboxes = document.querySelectorAll('.batch-checkbox');
+        const checkedBoxes = document.querySelectorAll('.batch-checkbox:checked');
+        const toolbar = document.getElementById('batchToolbar');
+        const countSpan = document.getElementById('selectedCount');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+
+        // 显示/隐藏工具栏和复选框
+        if (checkedBoxes.length > 0) {
+            toolbar.classList.add('show');
+            countSpan.textContent = checkedBoxes.length;
+
+            // 显示所有复选框并更新列表项选中状态
+            checkboxes.forEach(cb => {
+                cb.classList.remove('checkbox-hidden');
+                const row = cb.closest('.admin-card-row');
+                if (cb.checked) {
+                    row?.classList.add('selected');
+                } else {
+                    row?.classList.remove('selected');
+                }
+            });
+        } else {
+            toolbar.classList.remove('show');
+            // 隐藏所有复选框
+            checkboxes.forEach(cb => {
+                cb.classList.add('checkbox-hidden');
+                cb.closest('.admin-card-row')?.classList.remove('selected');
+            });
+        }
+
+        // 更新全选checkbox状态(三态)
+        if (checkboxes.length === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedBoxes.length === checkboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedBoxes.length > 0) {
+            selectAllCheckbox.indeterminate = true;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        }
+    }
+
+    // 全选/取消全选 - Windows风格
+    function toggleSelectAll() {
+        const checkboxes = document.querySelectorAll('.batch-checkbox');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const shouldCheck = selectAllCheckbox.checked;
+
+        checkboxes.forEach(cb => {
+            cb.checked = shouldCheck;
+        });
+
+        updateBatchSelection();
+    }
+
+    // 清除选择
+    function clearSelection() {
+        document.querySelectorAll('.batch-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        updateBatchSelection();
+    }
+
+    // 获取选中的图片ID
+    function getSelectedImageIds() {
+        const checkedBoxes = document.querySelectorAll('.batch-checkbox:checked');
+        return Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.imgId));
+    }
+
+    // 批量删除
+    function batchDelete() {
+        const imageIds = getSelectedImageIds();
+        if (imageIds.length === 0) {
+            alert('请先选择要删除的图片');
+            return;
+        }
+
+        if (!confirm(`确定要删除选中的 ${imageIds.length} 张图片吗？此操作不可恢复！`)) {
+            return;
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        fetch("{{ url_for('admin.batch_delete') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ image_ids: imageIds })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('操作失败: ' + data.message);
+            }
+        })
+        .catch(err => {
+            alert('网络错误，请重试');
+            console.error(err);
+        });
+    }
+
+    // 显示批量修改标签弹窗
+    function showBatchTagModal() {
+        const imageIds = getSelectedImageIds();
+        if (imageIds.length === 0) {
+            alert('请先选择要修改的图片');
+            return;
+        }
+
+        // 清空之前的选择
+        document.querySelectorAll('.batch-tag-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+
+        const modal = new bootstrap.Modal(document.getElementById('batchTagModal'));
+        modal.show();
+    }
+
+    // 提交批量标签修改
+    function submitBatchTagModify() {
+        const imageIds = getSelectedImageIds();
+        const tagCheckboxes = document.querySelectorAll('.batch-tag-checkbox:checked');
+        const tagIds = Array.from(tagCheckboxes).map(cb => parseInt(cb.value));
+        const action = document.getElementById('batchTagAction').value;
+
+        if (tagIds.length === 0) {
+            alert('请至少选择一个标签');
+            return;
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        fetch("{{ url_for('admin.batch_modify_tags') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                image_ids: imageIds,
+                tag_ids: tagIds,
+                action: action
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                alert(data.message);
+                bootstrap.Modal.getInstance(document.getElementById('batchTagModal')).hide();
+                location.reload();
+            } else {
+                alert('操作失败: ' + data.message);
+            }
+        })
+        .catch(err => {
+            alert('网络错误，请重试');
+            console.error(err);
+        });
+    }
+
+    // ===== 原有的其他函数 =====
+
     // Toggle Global Setting (敏感内容)
     function updateGlobalSetting(checkbox) {
         const isChecked = checkbox.checked;
@@ -476,5 +780,256 @@
 <style>
     /* Hover Danger helper for icon buttons */
     .hover-danger:hover { background-color: #ff3b30 !important; color: white !important; }
+
+    /* ===== 现代化批量操作样式 ===== */
+
+    /* 默认隐藏复选框 */
+    .checkbox-hidden {
+        opacity: 0 !important;
+        width: 0 !important;
+        margin: 0 !important;
+        pointer-events: none;
+    }
+
+    /* hover时显示复选框 */
+    .modern-list-item:hover .checkbox-hidden {
+        opacity: 0.7 !important;
+        width: 18px !important;
+        pointer-events: auto;
+    }
+
+    /* Modern checkbox styling */
+    .modern-checkbox {
+        transition: all 0.2s ease;
+        border-radius: 4px;
+        border: 2px solid var(--text-secondary);
+        opacity: 0.5;
+    }
+
+    .modern-checkbox:hover {
+        opacity: 1 !important;
+        border-color: var(--bs-primary);
+    }
+
+    .modern-checkbox:checked {
+        opacity: 1 !important;
+        background-color: var(--bs-primary);
+        border-color: var(--bs-primary);
+    }
+
+    .modern-checkbox:indeterminate {
+        opacity: 1 !important;
+        background-color: var(--bs-primary);
+        border-color: var(--bs-primary);
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10h8'/%3e%3c/svg%3e");
+    }
+
+    /* 全选checkbox样式优化 */
+    #selectAllCheckbox {
+        opacity: 0.4;
+    }
+
+    #selectAllCheckbox:hover {
+        opacity: 1 !important;
+    }
+
+    #selectAllCheckbox:checked,
+    #selectAllCheckbox:indeterminate {
+        opacity: 1 !important;
+    }
+
+    /* Batch toolbar animations - 精简高度 */
+    .batch-toolbar {
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transform: translateY(-10px);
+    }
+
+    .batch-toolbar.show {
+        max-height: 70px;
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    /* Glass panel effect for toolbar */
+    .glass-panel {
+        background: var(--btn-bg);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+    }
+
+    /* Modern list item effects */
+    .modern-list-item {
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 8px;
+        padding: 12px 8px;
+        margin-bottom: 4px;
+    }
+
+    .modern-list-item:hover {
+        background-color: var(--btn-bg);
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .modern-list-item.selected {
+        background-color: rgba(var(--bs-primary-rgb), 0.08);
+        border-left: 4px solid var(--bs-primary);
+        padding-left: 8px;
+    }
+
+    /* Thumbnail hover overlay */
+    .thumb-link {
+        position: relative;
+        overflow: hidden;
+        border-radius: 8px;
+        display: block;
+    }
+
+    .thumb-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.3) 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+    }
+
+    .thumb-link:hover .thumb-overlay {
+        opacity: 1;
+    }
+
+    /* Batch action buttons */
+    .batch-action-btn {
+        transition: all 0.2s ease;
+        position: relative;
+    }
+
+    .batch-action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+
+    .batch-action-btn:active {
+        transform: translateY(0);
+    }
+
+    .batch-action-btn.btn-danger:hover {
+        background-color: #ff3b30 !important;
+        border-color: #ff3b30 !important;
+    }
+
+    /* Utility classes */
+    .cursor-pointer {
+        cursor: pointer;
+    }
+
+    .user-select-none {
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+    }
+
+    /* Select all container */
+    .select-all-container {
+        transition: all 0.2s ease;
+    }
+
+    .select-all-container:hover .modern-checkbox {
+        opacity: 1;
+    }
+
+    .select-all-container label {
+        transition: color 0.2s ease;
+    }
+
+    .select-all-container:hover label {
+        color: var(--text-primary) !important;
+    }
+
+    /* 紧凑缩略图样式 */
+    .admin-thumb-compact {
+        width: 56px;
+        height: 56px;
+        object-fit: cover;
+        border-radius: 6px;
+        transition: transform 0.3s ease;
+    }
+
+    .thumb-link:hover .admin-thumb-compact {
+        transform: scale(1.05);
+    }
+
+    /* Smooth animations for row highlighting */
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .modern-list-item {
+        animation: slideInRight 0.3s ease-out;
+    }
+
+    /* Badge for selected count */
+    #selectedCount {
+        font-size: 1.1em;
+        font-weight: 700;
+        display: inline-block;
+        min-width: 24px;
+        text-align: center;
+    }
+
+    /* Pagination footer styles */
+    .pagination-footer {
+        border-top: 1px solid var(--text-secondary);
+        border-opacity: 0.1;
+        padding-top: 2rem !important;
+    }
+
+    /* Per-page select styling */
+    #perPageSelect {
+        min-width: 100px;
+        padding: 0.375rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    #perPageSelect:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    #perPageSelect:focus {
+        box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.25);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .modern-list-item:hover {
+            transform: translateX(2px);
+        }
+
+        .batch-toolbar.show {
+            max-height: 250px;
+        }
+
+        .pagination-footer .d-flex {
+            flex-direction: column-reverse;
+        }
+
+        #perPageSelect {
+            width: 100% !important;
+        }
+    }
 </style>
 {% endblock %}

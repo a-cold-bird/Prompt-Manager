@@ -137,11 +137,24 @@
         NProgress.configure({ showSpinner: false });
         window.addEventListener('load', function() { NProgress.done(); });
         document.addEventListener('submit', function() { NProgress.start(); });
+
+        // NProgress 超时机制：防止进度条永久显示
+        let nprogessTimeout;
+        function startProgressWithTimeout() {
+            NProgress.start();
+            clearTimeout(nprogessTimeout);
+            nprogessTimeout = setTimeout(() => {
+                if (NProgress.status) {
+                    NProgress.done();
+                }
+            }, 5000);  // 5秒后强制完成
+        }
+
         document.addEventListener('click', function(e) {
             const link = e.target.closest('a');
             if (!link || !link.href) return;
             if (link.target === '_blank' || e.ctrlKey || link.hasAttribute('data-bs-toggle') || link.href.startsWith('#') || link.href.startsWith('javascript')) return;
-            NProgress.start();
+            startProgressWithTimeout();
         });
     </script>
 </body>

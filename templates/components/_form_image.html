@@ -49,7 +49,7 @@
                 <div class="text-secondary small opacity-75">支持 JPG, PNG, WEBP (Max 20MB)</div>
             </div>
 
-            <img id="mainPreview" src="{{ image.file_path if image else '' }}"
+            <img id="mainPreview" src="{{ ('/' + image.file_path) if image else '' }}"
                  class="img-fluid w-100 h-100 object-fit-contain position-absolute top-0 start-0 bg-dark {{ 'd-none' if not image else '' }}"
                  style="transition: opacity 0.3s;">
         </div>
