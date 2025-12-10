@@ -43,8 +43,14 @@ def _get_common_data(category_filter=None):
     if tag_filter:
         query = query.filter(Image.tags.any(name=tag_filter))
 
-    if type_filter and type_filter in ['text2img', 'img2img', 'txt2img']:
-        query = query.filter_by(type=type_filter)
+    # 支持两种写法: txt2img 和 text2img（规范化为 txt2img）
+    if type_filter:
+        # 规范化type_filter
+        if type_filter == 'text2img':
+            type_filter = 'txt2img'
+
+        if type_filter in ['txt2img', 'img2img']:
+            query = query.filter_by(type=type_filter)
 
     if search_query:
         query = query.filter(

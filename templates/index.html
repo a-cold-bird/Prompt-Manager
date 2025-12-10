@@ -67,8 +67,8 @@
                        title="Show all image types">
                        <i class="bi bi-images"></i><span>All</span>
                     </a>
-                    <a href="{{ url_for(request.endpoint, sort=current_sort, tag=active_tag, q=active_search, type='text2img') }}"
-                       class="nav-link {{ 'active' if active_type == 'text2img' else '' }}"
+                    <a href="{{ url_for(request.endpoint, sort=current_sort, tag=active_tag, q=active_search, type='txt2img') }}"
+                       class="nav-link {{ 'active' if active_type == 'txt2img' else '' }}"
                        title="Text to Image">
                        <i class="bi bi-chat-dots"></i><span>T2I</span>
                     </a>
@@ -205,7 +205,7 @@
         <a href="{{ url_for(request.endpoint, sort=current_sort, q=active_search) }}" class="nav-item-apple {{ 'active' if not active_type else '' }}">
             <i class="bi bi-images me-3 small opacity-50"></i>全部类型
         </a>
-        <a href="{{ url_for(request.endpoint, sort=current_sort, q=active_search, type='text2img') }}" class="nav-item-apple {{ 'active' if active_type == 'text2img' else '' }}">
+        <a href="{{ url_for(request.endpoint, sort=current_sort, q=active_search, type='txt2img') }}" class="nav-item-apple {{ 'active' if active_type == 'txt2img' else '' }}">
             <i class="bi bi-chat-dots me-3 small opacity-50"></i>Text to Image (T2I)
         </a>
         <a href="{{ url_for(request.endpoint, sort=current_sort, q=active_search, type='img2img') }}" class="nav-item-apple {{ 'active' if active_type == 'img2img' else '' }}">
@@ -299,4 +299,65 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/gallery.js') }}"></script>
+
+<!-- Search Debouncing Feature -->
+<script>
+(function() {
+    const searchInput = document.querySelector('input[name="q"]');
+    const searchForm = document.querySelector('form[method="get"][action*="endpoint"]');
+
+    if (!searchInput || !searchForm) return;
+
+    // 防抖定时器
+    let debounceTimer = null;
+    const DEBOUNCE_DELAY = 400; // 毫秒
+
+    /**
+     * 执行搜索提交
+     */
+    function performSearch() {
+        // 清空定时器
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+        }
+
+        // 提交表单
+        searchForm.submit();
+    }
+
+    /**
+     * 防抖搜索处理
+     * 在用户停止输入后 DEBOUNCE_DELAY 毫秒后提交搜索
+     */
+    function debouncedSearch() {
+        // 清除之前的定时器
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+
+        // 设置新的定时器
+        debounceTimer = setTimeout(() => {
+            performSearch();
+        }, DEBOUNCE_DELAY);
+    }
+
+    /**
+     * 监听搜索框的输入事件
+     * 不使用 change 事件，因为用户可能想查看实时搜索结果
+     */
+    searchInput.addEventListener('input', debouncedSearch);
+
+    /**
+     * 用户按 Enter 键时立即提交
+     * 不等待防抖延迟，立即执行搜索
+     */
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performSearch();
+        }
+    });
+})();
+</script>
 {% endblock %}
