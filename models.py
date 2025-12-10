@@ -80,7 +80,20 @@ class Image(db.Model):
             # 确保路径以 / 开头
             if not path.startswith('/'):
                 path = '/' + path
-            return request.url_root.rstrip('/') + path
+
+            # 从请求中获取正确的URL根
+            # 处理反向代理场景：优先使用 X-Forwarded-Proto 和 Host 头
+            if request.headers.get('X-Forwarded-Proto'):
+                # 反向代理场景（Nginx、Cloudflare等）
+                scheme = request.headers.get('X-Forwarded-Proto', 'https')
+                host = request.headers.get('X-Forwarded-Host') or request.host
+            else:
+                # 直接连接
+                scheme = request.scheme
+                host = request.host
+
+            url_root = f"{scheme}://{host}/"
+            return url_root.rstrip('/') + path
 
         # 构造参考图列表
         refs_data = []

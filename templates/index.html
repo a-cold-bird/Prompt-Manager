@@ -107,13 +107,14 @@
                     <div class="art-frame cursor-zoom" onclick="showDetail(this)">
 
                         <script type="application/json" class="img-data">
-                            {{ img.to_dict() | tojson | safe }}
+                            {% set img_dict = img.to_dict() %}
+                            {{ img_dict | tojson | safe }}
                         </script>
 
                         {% if config.USE_THUMBNAIL_IN_PREVIEW %}
-                            <img src="{{ '/' + (img.thumbnail_path or img.file_path) }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
+                            <img src="{{ img_dict.thumbnail_path or img_dict.file_path }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
                         {% else %}
-                            <img src="{{ '/' + img.file_path }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
+                            <img src="{{ img_dict.file_path }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
                         {% endif %}
 
                         <span class="position-absolute top-0 end-0 m-2 badge bg-black bg-opacity-25 backdrop-blur rounded-1 fw-normal"
