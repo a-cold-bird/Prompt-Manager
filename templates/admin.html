@@ -71,7 +71,8 @@
                     <div class="col">
                         <div class="pending-gallery-card">
                             <div class="pending-img-zone">
-                                <img src="{{ '/' + (img.thumbnail_path or img.file_path) }}" loading="lazy">
+                                {% set img_dict = img.to_dict() %}
+                                <img src="{{ img_dict.thumbnail_path or img_dict.file_path }}" loading="lazy">
                                 <div class="position-absolute top-0 start-0 m-3">
                                     <span class="badge bg-warning bg-opacity-75 backdrop-blur shadow-sm border border-white border-opacity-25" style="color: #000;">
                                         Pending
@@ -190,8 +191,9 @@
                                data-img-id="{{ img.id }}"
                                style="width: 18px; height: 18px; cursor: pointer;"
                                onchange="updateBatchSelection()">
+                        {% set img_dict = img.to_dict() %}
                         <a href="{{ url_for('admin.edit_image', img_id=img.id, next=request.full_path) }}" class="position-relative group thumb-link">
-                            <img src="{{ '/' + (img.thumbnail_path or img.file_path) }}" class="admin-thumb-compact">
+                            <img src="{{ img_dict.thumbnail_path or img_dict.file_path }}" class="admin-thumb-compact">
                             {% if img.type == 'img2img' %}
                             <span class="position-absolute bottom-0 end-0 badge bg-black bg-opacity-50 border border-white border-opacity-25 rounded-pill m-1" style="font-size: 0.5rem;">I2I</span>
                             {% endif %}
