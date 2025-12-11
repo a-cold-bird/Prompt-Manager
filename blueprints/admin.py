@@ -389,9 +389,18 @@ def toggle_category(img_id, category):
         return jsonify({'status': 'error', 'message': '图片不存在'}), 404
 
     try:
+        old_category = img.category
         img.category = category
         db.session.commit()
         category_text = '画廊' if category == 'gallery' else '模板'
+
+        # 记录成功的分类切换操作 - API操作日志
+        current_app.logger.info(
+            f"[API:TOGGLE-CATEGORY] User={request.environ.get('REMOTE_USER', 'Unknown')} | "
+            f"ImgID={img_id} | Title={img.title[:50]} | "
+            f"Change={old_category}→{category} | Time={time.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
         return jsonify({
             'status': 'ok',
             'category': category,
@@ -399,5 +408,8 @@ def toggle_category(img_id, category):
         })
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Toggle category error: {e}")
+        current_app.logger.error(
+            f"[API:TOGGLE-CATEGORY-ERROR] ImgID={img_id} | Category={category} | "
+            f"Error={str(e)[:100]} | Time={time.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
         return jsonify({'status': 'error', 'message': str(e)}), 500
