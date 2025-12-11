@@ -222,6 +222,24 @@
                     </div>
 
                     <div class="d-flex gap-2 flex-shrink-0 align-items-center">
+                        <!-- 分类切换按钮 - 文字按钮 -->
+                        <button type="button"
+                                class="category-toggle-btn"
+                                data-img-id="{{ img.id }}"
+                                data-category="gallery"
+                                onclick="toggleCategory({{ img.id }}, 'gallery')"
+                                style="{% if img.category == 'gallery' %}background: var(--accent-color); color: white;{% else %}background: var(--btn-bg); color: var(--text-secondary);{% endif %}">
+                            <i class="bi bi-images me-1"></i>画廊
+                        </button>
+                        <button type="button"
+                                class="category-toggle-btn"
+                                data-img-id="{{ img.id }}"
+                                data-category="template"
+                                onclick="toggleCategory({{ img.id }}, 'template')"
+                                style="{% if img.category == 'template' %}background: var(--accent-color); color: white;{% else %}background: var(--btn-bg); color: var(--text-secondary);{% endif %}">
+                            <i class="bi bi-file-earmark me-1"></i>模板
+                        </button>
+
                         <a href="{{ url_for('admin.edit_image', img_id=img.id, next=request.full_path) }}"
                            class="btn-circle-icon" title="编辑">
                             <i class="bi bi-pencil-fill" style="font-size: 0.9rem;"></i>
@@ -699,6 +717,63 @@
         });
     }
 
+    // 快速切换分类（画廊/模板）
+    function toggleCategory(imgId, category) {
+        const categoryText = category === 'gallery' ? '画廊' : '模板';
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        fetch(`/admin/toggle-category/${imgId}/${category}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'ok') {
+                // 找到对应的行
+                const allButtons = document.querySelectorAll(`.category-toggle-btn[data-img-id="${imgId}"]`);
+
+                // 更新所有按钮的样式
+                allButtons.forEach(btn => {
+                    const btnCategory = btn.getAttribute('data-category');
+                    if (btnCategory === category) {
+                        // 当前选中的按钮 - 激活
+                        btn.style.background = 'var(--accent-color)';
+                        btn.style.color = 'white';
+                    } else {
+                        // 未选中的按钮 - 恢复
+                        btn.style.background = 'var(--btn-bg)';
+                        btn.style.color = 'var(--text-secondary)';
+                    }
+                });
+
+                // 显示成功提示
+                const toast = document.createElement('div');
+                toast.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                toast.innerHTML = `
+                    <i class="bi bi-check-circle me-2"></i>
+                    已切换为: ${categoryText}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(toast);
+
+                // 自动关闭 Toast
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            } else {
+                alert('切换失败: ' + data.message);
+            }
+        })
+        .catch(err => {
+            alert('网络错误，请重试');
+            console.error(err);
+        });
+    }
+
     // ===== 原有的其他函数 =====
 
     // Toggle Global Setting (敏感内容)
@@ -1013,6 +1088,33 @@
 
     #perPageSelect:focus {
         box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.25);
+    }
+
+    /* 分类切换按钮样式 */
+    .category-toggle-btn {
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: none;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+    }
+
+    .category-toggle-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .category-toggle-btn:active {
+        transform: translateY(0);
+    }
+
+    .category-toggle-btn i {
+        font-size: 0.9rem;
     }
 
     /* Responsive adjustments */

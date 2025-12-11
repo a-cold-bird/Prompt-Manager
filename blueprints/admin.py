@@ -375,3 +375,29 @@ def batch_modify_tags():
         db.session.rollback()
         current_app.logger.error(f"Batch modify tags error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@bp.route('/toggle-category/<int:img_id>/<category>', methods=['POST'])
+@login_required
+def toggle_category(img_id, category):
+    """快速切换图片分类（画廊/模板）"""
+    if category not in ('gallery', 'template'):
+        return jsonify({'status': 'error', 'message': '无效的分类'}), 400
+
+    img = db.session.get(Image, img_id)
+    if not img:
+        return jsonify({'status': 'error', 'message': '图片不存在'}), 404
+
+    try:
+        img.category = category
+        db.session.commit()
+        category_text = '画廊' if category == 'gallery' else '模板'
+        return jsonify({
+            'status': 'ok',
+            'category': category,
+            'message': f'已切换为: {category_text}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Toggle category error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
