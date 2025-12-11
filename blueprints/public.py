@@ -159,10 +159,11 @@ def _get_api_data(category_filter):
     """
     API 通用查询逻辑 (Internal Helper)
     :param category_filter: 'gallery' 或 'template'
-    """
-    page = request.args.get('page', 1, type=int)
-    per_page = min(request.args.get('per_page', 20, type=int), 100)  # 默认每页20条
 
+    默认返回所有数据（不分页）。可通过参数切换：
+    - ?all=1 或不传参数：返回所有数据
+    - ?page=X&per_page=Y：启用分页
+    """
     # 基础查询：只看已发布的
     query = Image.query.filter_by(status='approved')
 
@@ -173,15 +174,30 @@ def _get_api_data(category_filter):
     # 排序：默认按时间倒序
     query = query.order_by(Image.created_at.desc())
 
-    # 分页执行
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    # 检查是否需要分页
+    use_pagination = request.args.get('page') or request.args.get('per_page')
 
-    return {
-        'current_page': page,
-        'pages': pagination.pages,
-        'total': pagination.total,
-        'data': [img.to_dict() for img in pagination.items]
-    }
+    if use_pagination:
+        # 用户明确指定了分页参数，则启用分页
+        page = request.args.get('page', 1, type=int)
+        per_page = min(request.args.get('per_page', 20, type=int), 100)
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+        return {
+            'current_page': page,
+            'pages': pagination.pages,
+            'total': pagination.total,
+            'data': [img.to_dict() for img in pagination.items]
+        }
+    else:
+        # 默认返回所有数据（无分页）
+        all_items = query.all()
+        return {
+            'current_page': 1,
+            'pages': 1,
+            'total': len(all_items),
+            'data': [img.to_dict() for img in all_items]
+        }
 
 
 @bp.route('/api/gallery')

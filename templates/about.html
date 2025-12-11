@@ -157,7 +157,7 @@
                     <tr>
                         <th class="ps-3 py-2" style="width: 120px;">参数名</th>
                         <th class="py-2" style="width: 80px;">类型</th>
-                        <th class="py-2" style="width: 80px;">默认值</th>
+                        <th class="py-2" style="width: 100px;">默认值</th>
                         <th class="py-2">描述</th>
                     </tr>
                 </thead>
@@ -165,24 +165,33 @@
                     <tr>
                         <td class="ps-3 font-monospace" style="color: var(--text-primary);">page</td>
                         <td>Int</td>
-                        <td>1</td>
-                        <td>分页页码。</td>
+                        <td>（不分页）</td>
+                        <td>启用分页时的页码。与 <code>per_page</code> 搭配使用。</td>
                     </tr>
                     <tr>
                         <td class="ps-3 font-monospace" style="color: var(--text-primary);">per_page</td>
                         <td>Int</td>
-                        <td>20</td>
-                        <td>每页返回数量（最大 100）。</td>
+                        <td>（不分页）</td>
+                        <td>每页返回数量（最大 100）。与 <code>page</code> 搭配使用。</td>
                     </tr>
                 </tbody>
             </table>
         </div>
 
+        <div class="alert alert-info border-0 rounded-3 p-3 mb-4" style="background: var(--btn-bg); color: var(--text-secondary);">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>默认行为：</strong>不传分页参数时，API 返回 <strong>所有数据</strong>（不限数量）。
+            若要分页，请同时指定 <code>page</code> 和 <code>per_page</code> 参数。
+        </div>
+
         <h6 class="fw-bold text-secondary small text-uppercase mb-3 ps-1">响应示例 (Response Example)</h6>
+        <p class="text-secondary small mb-2">
+            以下是不带分页参数时的响应示例（返回全部数据）：
+        </p>
         <div class="bg-dark text-white p-3 rounded-3 shadow-sm position-relative group">
             <pre class="m-0 custom-scrollbar" style="font-family: 'SF Mono', monospace; font-size: 0.8rem; color: #a5d6ff; max-height: 300px; overflow-y: auto;">{
   "current_page": 1,
-  "pages": 5,
+  "pages": 1,
   "total": 120,
   "data": [
     {
