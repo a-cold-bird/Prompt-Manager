@@ -22,6 +22,12 @@ window.showDetail = function(el) {
         // 1. 基础信息渲染
         const modalImg = document.getElementById('modalImg');
         modalImg.src = data.file_path;
+        // 添加 LQIP 背景（如果有的话）
+        if (data.lqip_data) {
+            modalImg.style.backgroundImage = `url('${data.lqip_data}')`;
+            modalImg.style.backgroundSize = 'cover';
+            modalImg.style.backgroundPosition = 'center';
+        }
         document.getElementById('modalTitle').innerText = data.title;
         document.getElementById('modalAuthor').innerText = data.author ? 'by ' + data.author : '';
 

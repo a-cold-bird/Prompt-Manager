@@ -150,9 +150,19 @@ a { text-decoration: none; color: inherit; }
     opacity: 0; filter: blur(8px); transform: scale(1.05);
     transition: opacity 0.6s ease-out, filter 0.6s ease-out, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
     will-change: opacity, transform, filter;
+    /* LQIP 占位图背景支持 */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
-.art-frame img.reveal { opacity: 1; filter: blur(0); transform: scale(1); }
+.art-frame img.reveal {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+    /* 图片加载完成后，清除背景图 */
+    background-image: none !important;
+}
 .art-frame:active { transform: scale(0.96); }
 
 .gallery-item:hover .art-frame {

@@ -1,6 +1,8 @@
 import os
 import uuid
 import urllib.request
+import base64
+import io
 from PIL import Image as PilImage
 from flask import current_app
 
@@ -12,6 +14,8 @@ except ImportError:
 
 ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
 THUMB_SIZE = (400, 400)
+LQIP_SIZE = (32, 32)  # 低质量占位图尺寸
+LQIP_QUALITY = 30     # 低质量占位图 JPEG 质量
 
 
 def get_s3_client():
@@ -27,6 +31,46 @@ def get_s3_client():
         aws_access_key_id=current_app.config.get('S3_ACCESS_KEY'),
         aws_secret_access_key=current_app.config.get('S3_SECRET_KEY')
     )
+
+
+def generate_lqip(pil_image):
+    """
+    生成 LQIP (Low Quality Image Placeholder) - Base64 编码的数据 URL。
+    通过创建超小尺寸、低质量的图片，作为初始加载占位符。
+
+    Args:
+        pil_image: PIL Image 对象
+
+    Returns:
+        str: 格式为 'data:image/jpeg;base64,...' 的数据 URL
+    """
+    try:
+        # 处理 RGBA 和调色板模式，转换为 RGB
+        if pil_image.mode in ('RGBA', 'P'):
+            pil_image = pil_image.convert('RGB')
+        elif pil_image.mode not in ('RGB', 'L'):
+            pil_image = pil_image.convert('RGB')
+
+        # 创建超小尺寸版本
+        lqip = pil_image.copy()
+        lqip.thumbnail(LQIP_SIZE, PilImage.Resampling.LANCZOS)
+
+        # 保存为 JPEG 低质量
+        buffer = io.BytesIO()
+        lqip.save(buffer, format='JPEG', quality=LQIP_QUALITY, optimize=True)
+        buffer.seek(0)
+
+        # 转换为 Base64
+        base64_data = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+        # 返回数据 URL
+        return f"data:image/jpeg;base64,{base64_data}"
+
+    except Exception as e:
+        current_app.logger.error(f"LQIP generation error: {e}")
+        # 生成失败时返回空字符串
+        return ""
+
 
 
 def process_image(file_storage, upload_folder):
@@ -71,12 +115,15 @@ def process_image(file_storage, upload_folder):
             )
 
             web_original = f"{domain}/{filename}"
-            
+
             # 拼接缩略图后缀
             thumb_suffix = current_app.config.get('S3_THUMB_SUFFIX') or ''
             web_thumb = f"{web_original}{thumb_suffix}"
 
-            return web_original, web_thumb
+            # S3 模式不生成本地 LQIP，返回空字符串（可后续扩展为云端生成）
+            lqip_data = ""
+
+            return web_original, web_thumb, lqip_data
 
         except Exception as e:
             current_app.logger.error(f"S3 Upload Error: {e}")
@@ -107,6 +154,7 @@ def process_image(file_storage, upload_folder):
             if img.format == 'GIF':
                 img.save(file_abspath, save_all=True, optimize=True)
                 web_path = f"/{upload_folder}/{filename}".replace('//', '/')
+                # GIF 不生成 LQIP，仅返回路径
                 return web_path, web_path
 
             # 生成缩略图
@@ -115,6 +163,9 @@ def process_image(file_storage, upload_folder):
 
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
+
+            # ===== 新增：生成 LQIP =====
+            lqip_data = generate_lqip(img)
 
             img_thumb = img.copy()
             img_thumb.thumbnail(THUMB_SIZE)
@@ -131,7 +182,8 @@ def process_image(file_storage, upload_folder):
             web_original = f"/{upload_folder}/{filename}".replace('//', '/')
             web_thumb = f"/{upload_folder}/{thumb_filename}".replace('//', '/')
 
-            return web_original, web_thumb
+            # ===== 新增：返回三元组（原图, 缩略图, LQIP）=====
+            return web_original, web_thumb, lqip_data
 
         except Exception as e:
             current_app.logger.error(f"Image processing error: {e}")

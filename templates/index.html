@@ -112,9 +112,17 @@
                         </script>
 
                         {% if config.USE_THUMBNAIL_IN_PREVIEW %}
-                            <img src="{{ img_dict.thumbnail_path or img_dict.file_path }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
+                            <img src="{{ img_dict.thumbnail_path or img_dict.file_path }}"
+                                 alt="{{ img.title }}"
+                                 loading="lazy"
+                                 onload="this.classList.add('reveal')"
+                                 {% if img_dict.lqip_data %}style="background-image: url('{{ img_dict.lqip_data }}'); background-size: cover;"{% endif %}>
                         {% else %}
-                            <img src="{{ img_dict.file_path }}" alt="{{ img.title }}" loading="lazy" onload="this.classList.add('reveal')">
+                            <img src="{{ img_dict.file_path }}"
+                                 alt="{{ img.title }}"
+                                 loading="lazy"
+                                 onload="this.classList.add('reveal')"
+                                 {% if img_dict.lqip_data %}style="background-image: url('{{ img_dict.lqip_data }}'); background-size: cover;"{% endif %}>
                         {% endif %}
 
                         <span class="position-absolute top-0 end-0 m-2 badge bg-black bg-opacity-25 backdrop-blur rounded-1 fw-normal"

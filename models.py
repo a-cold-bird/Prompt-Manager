@@ -48,6 +48,7 @@ class Image(db.Model):
     author = db.Column(db.String(50), default='匿名')
     file_path = db.Column(db.String(255), nullable=False)
     thumbnail_path = db.Column(db.String(255))
+    lqip_data = db.Column(db.Text)  # 低质量占位图 (Base64 数据 URL)
     prompt = db.Column(db.Text)
     description = db.Column(db.Text)
     type = db.Column(db.String(50))  # txt2img / img2img
@@ -123,6 +124,7 @@ class Image(db.Model):
             # 主图和缩略图都处理成绝对路径
             "file_path": _get_full_url(self.file_path),
             "thumbnail_path": _get_full_url(self.thumbnail_path),
+            "lqip_data": self.lqip_data or "",  # LQIP 数据 URL
 
             "tags": [t.name for t in self.tags],
 

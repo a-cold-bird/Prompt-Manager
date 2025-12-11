@@ -10,7 +10,7 @@ class ImageService:
     def create_image(file, data, ref_files=None):
         """创建新作品记录"""
         upload_folder = current_app.config['UPLOAD_FOLDER']
-        web_path, thumb_path = process_image(file, upload_folder)
+        web_path, thumb_path, lqip_data = process_image(file, upload_folder)
 
         try:
             image = Image(
@@ -22,6 +22,7 @@ class ImageService:
                 category=data.get('category', 'gallery'),
                 file_path=web_path,
                 thumbnail_path=thumb_path,
+                lqip_data=lqip_data,  # 新增：保存 LQIP 数据
                 status=data.get('status', 'pending')
             )
 
@@ -69,9 +70,10 @@ class ImageService:
         # 替换主图
         if new_main_file and new_main_file.filename:
             old_files = [image.file_path, image.thumbnail_path]
-            web_path, thumb_path = process_image(new_main_file, upload_folder)
+            web_path, thumb_path, lqip_data = process_image(new_main_file, upload_folder)
             image.file_path = web_path
             image.thumbnail_path = thumb_path
+            image.lqip_data = lqip_data  # 新增：更新 LQIP 数据
 
             for p in old_files:
                 remove_physical_file(p)
@@ -143,7 +145,7 @@ class ImageService:
         for i, f in enumerate(files):
             if f.filename:
                 try:
-                    path, _ = process_image(f, upload_folder)
+                    path, _, _ = process_image(f, upload_folder)  # 忽略缩略图和 LQIP（参考图不需要）
                     ref = ReferenceImage(image_id=image.id, file_path=path, position=start_pos + i,
                                          is_placeholder=False)
                     db.session.add(ref)
@@ -163,7 +165,7 @@ class ImageService:
                     try:
                         f = next(new_file_iter)
                         if f and f.filename:
-                            path, _ = process_image(f, upload_folder)
+                            path, _, _ = process_image(f, upload_folder)  # 忽略缩略图和 LQIP（参考图不需要）
                             ref = ReferenceImage(image_id=image.id, file_path=path, position=index,
                                                  is_placeholder=False)
                             db.session.add(ref)
