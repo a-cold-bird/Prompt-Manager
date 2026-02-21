@@ -165,14 +165,14 @@
                     <tr>
                         <td class="ps-3 font-monospace" style="color: var(--text-primary);">page</td>
                         <td>Int</td>
-                        <td>（不分页）</td>
-                        <td>启用分页时的页码。与 <code>per_page</code> 搭配使用。</td>
+                        <td>1</td>
+                        <td>页码，从 1 开始。</td>
                     </tr>
                     <tr>
                         <td class="ps-3 font-monospace" style="color: var(--text-primary);">per_page</td>
                         <td>Int</td>
-                        <td>（不分页）</td>
-                        <td>每页返回数量（最大 100）。与 <code>page</code> 搭配使用。</td>
+                        <td>500</td>
+                        <td>每页数量（最大 10000）；传 <code>-1</code> 可请求最大批量。</td>
                     </tr>
                 </tbody>
             </table>
@@ -180,19 +180,26 @@
 
         <div class="alert alert-info border-0 rounded-3 p-3 mb-4" style="background: var(--btn-bg); color: var(--text-secondary);">
             <i class="bi bi-info-circle me-2"></i>
-            <strong>默认行为：</strong>不传分页参数时，API 返回 <strong>所有数据</strong>（不限数量）。
-            若要分页，请同时指定 <code>page</code> 和 <code>per_page</code> 参数。
+            <strong>默认行为：</strong>API 默认按 <code>per_page=500</code> 分页返回，并包含 <code>meta</code> 分页信息。
+            可通过响应里的 <code>meta.next_url</code> 拉取下一页。
         </div>
 
         <h6 class="fw-bold text-secondary small text-uppercase mb-3 ps-1">响应示例 (Response Example)</h6>
         <p class="text-secondary small mb-2">
-            以下是不带分页参数时的响应示例（返回全部数据）：
+            以下是默认分页响应示例（未传参数时默认 <code>per_page=500</code>）：
         </p>
         <div class="bg-dark text-white p-3 rounded-3 shadow-sm position-relative group">
             <pre class="m-0 custom-scrollbar" style="font-family: 'SF Mono', monospace; font-size: 0.8rem; color: #a5d6ff; max-height: 300px; overflow-y: auto;">{
-  "current_page": 1,
-  "pages": 1,
-  "total": 120,
+  "code": 200,
+  "message": "success",
+  "meta": {
+    "page": 1,
+    "per_page": 500,
+    "total_items": 120,
+    "total_pages": 1,
+    "has_next": false,
+    "next_url": null
+  },
   "data": [
     {
       "id": 42,

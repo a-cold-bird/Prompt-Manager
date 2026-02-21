@@ -3,6 +3,9 @@ import uuid
 import urllib.request
 import base64
 import io
+import time
+import gc
+from pathlib import Path
 from PIL import Image as PilImage
 from flask import current_app
 
@@ -149,41 +152,43 @@ def process_image(file_storage, upload_folder):
 
         try:
             img = PilImage.open(file_storage)
+            try:
+                # GIF 特殊处理：保留帧
+                if img.format == 'GIF':
+                    img.save(file_abspath, save_all=True, optimize=True)
+                    web_path = f"/{upload_folder}/{filename}".replace('//', '/')
+                    # GIF 不生成 LQIP，仅返回路径
+                    return web_path, web_path, ""
 
-            # GIF 特殊处理：保留帧
-            if img.format == 'GIF':
-                img.save(file_abspath, save_all=True, optimize=True)
-                web_path = f"/{upload_folder}/{filename}".replace('//', '/')
-                # GIF 不生成 LQIP，仅返回路径
-                return web_path, web_path
+                # 生成缩略图
+                thumb_filename = f"{unique_name}_thumb.jpg"
+                thumb_abspath = os.path.join(full_upload_dir, thumb_filename)
 
-            # 生成缩略图
-            thumb_filename = f"{unique_name}_thumb.jpg"
-            thumb_abspath = os.path.join(full_upload_dir, thumb_filename)
+                if img.mode in ('RGBA', 'P'):
+                    img = img.convert('RGB')
 
-            if img.mode in ('RGBA', 'P'):
-                img = img.convert('RGB')
+                # ===== 新增：生成 LQIP =====
+                lqip_data = generate_lqip(img)
 
-            # ===== 新增：生成 LQIP =====
-            lqip_data = generate_lqip(img)
+                img_thumb = img.copy()
+                img_thumb.thumbnail(THUMB_SIZE)
+                img_thumb.save(thumb_abspath, quality=90, optimize=True)
 
-            img_thumb = img.copy()
-            img_thumb.thumbnail(THUMB_SIZE)
-            img_thumb.save(thumb_abspath, quality=90, optimize=True)
+                # 保存主图
+                if enable_compress:
+                    if img.width > max_dim or img.height > max_dim:
+                        img.thumbnail((max_dim, max_dim), PilImage.Resampling.LANCZOS)
+                    img.save(file_abspath, quality=save_quality, optimize=True)
+                else:
+                    img.save(file_abspath, quality=100, optimize=False)
 
-            # 保存主图
-            if enable_compress:
-                if img.width > max_dim or img.height > max_dim:
-                    img.thumbnail((max_dim, max_dim), PilImage.Resampling.LANCZOS)
-                img.save(file_abspath, quality=save_quality, optimize=True)
-            else:
-                img.save(file_abspath, quality=100, optimize=False)
+                web_original = f"/{upload_folder}/{filename}".replace('//', '/')
+                web_thumb = f"/{upload_folder}/{thumb_filename}".replace('//', '/')
 
-            web_original = f"/{upload_folder}/{filename}".replace('//', '/')
-            web_thumb = f"/{upload_folder}/{thumb_filename}".replace('//', '/')
-
-            # ===== 新增：返回三元组（原图, 缩略图, LQIP）=====
-            return web_original, web_thumb, lqip_data
+                # ===== 新增：返回三元组（原图, 缩略图, LQIP）=====
+                return web_original, web_thumb, lqip_data
+            finally:
+                img.close()
 
         except Exception as e:
             current_app.logger.error(f"Image processing error: {e}")
@@ -228,9 +233,107 @@ def remove_physical_file(web_path):
             return
 
         if os.path.exists(full_path):
-            os.remove(full_path)
+            # Windows 上文件句柄释放存在轻微延迟，做短重试减少误删失败
+            for _ in range(30):
+                try:
+                    os.remove(full_path)
+                    return
+                except PermissionError:
+                    gc.collect()
+                    time.sleep(0.1)
+            _queue_pending_delete(full_path)
+            current_app.logger.warning(f"File deletion deferred after retries: {full_path}")
     except Exception as e:
         current_app.logger.error(f"File deletion error: {e}")
+
+
+def _pending_delete_file():
+    instance_root = current_app.instance_path
+    Path(instance_root).mkdir(parents=True, exist_ok=True)
+    return os.path.join(instance_root, 'pending_deletes.txt')
+
+
+def _queue_pending_delete(full_path):
+    """将暂时无法删除的文件加入延迟删除队列。"""
+    queue_file = _pending_delete_file()
+    with open(queue_file, 'a', encoding='utf-8') as f:
+        f.write(full_path + '\n')
+
+
+def _remove_with_retries(path, retries=10, delay=0.1):
+    """Try removing a local file with short retries for transient Windows locks."""
+    for _ in range(retries):
+        try:
+            os.remove(path)
+            return True
+        except FileNotFoundError:
+            return True
+        except PermissionError:
+            gc.collect()
+            time.sleep(delay)
+        except Exception:
+            return False
+    return False
+
+
+def cleanup_pending_deletions(app):
+    """Best-effort cleanup for deferred file deletions at startup."""
+    queue_file = os.path.join(app.instance_path, 'pending_deletes.txt')
+    if not os.path.exists(queue_file):
+        return
+
+    try:
+        with open(queue_file, 'r', encoding='utf-8') as f:
+            pending_paths = [line.strip() for line in f if line.strip()]
+    except FileNotFoundError:
+        return
+    except PermissionError as e:
+        app.logger.warning(f"Pending deletion queue locked, skip cleanup: {e}")
+        return
+    except Exception as e:
+        app.logger.warning(f"Failed to read pending deletion queue: {e}")
+        return
+
+    if not pending_paths:
+        try:
+            os.remove(queue_file)
+        except FileNotFoundError:
+            return
+        except PermissionError as e:
+            app.logger.warning(f"Pending deletion queue locked, keep file: {e}")
+        except Exception as e:
+            app.logger.warning(f"Failed to remove empty pending deletion queue: {e}")
+        return
+
+    remain = []
+    for p in dict.fromkeys(pending_paths):
+        try:
+            if os.path.exists(p):
+                if not _remove_with_retries(p, retries=5, delay=0.05):
+                    remain.append(p)
+        except Exception:
+            remain.append(p)
+
+    if remain:
+        try:
+            with open(queue_file, 'w', encoding='utf-8') as f:
+                for p in remain:
+                    f.write(p + '\n')
+        except PermissionError as e:
+            app.logger.warning(f"Pending deletion queue locked, keep stale entries: {e}")
+        except Exception as e:
+            app.logger.warning(f"Failed to update pending deletion queue: {e}")
+        return
+
+    try:
+        os.remove(queue_file)
+    except FileNotFoundError:
+        return
+    except PermissionError as e:
+        app.logger.warning(f"Pending deletion queue locked, keep file: {e}")
+    except Exception as e:
+        app.logger.warning(f"Failed to remove pending deletion queue: {e}")
+
 
 
 def ensure_local_resources(app):
@@ -269,3 +372,4 @@ def ensure_local_resources(app):
                 urllib.request.urlretrieve(url, local_path)
             except Exception as e:
                 print(f"Failed to download {relative_path}: {e}")
+

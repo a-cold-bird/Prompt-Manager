@@ -3,9 +3,6 @@
  * 画廊页面核心交互逻辑：详情弹窗、变量解析、交互式Prompt、统计打点。
  */
 
-// --- Global Constants ---
-const PROMPT_VAR_REGEX = /\{\{(.*?)\}\}/g;
-
 // --- Global State for Prompt Variables ---
 window.currentVars = {};
 window.rawPrompt = "";
@@ -45,23 +42,28 @@ window.showDetail = function(el) {
         const matches = [...window.rawPrompt.matchAll(regex)];
 
         if (matches.length > 0) {
-            // A. 生成高亮 Prompt HTML
-            // 给每个变量 span 一个唯一的 ID，方便 updateVar 函数精确定位更新
-            let varIndex = 0;
-            const highlightedHtml = window.rawPrompt.replace(regex, (match, p1) => {
-                const varName = p1.trim();
-                const spanId = `preview-var-${varName}-${varIndex++}`;
-                // data-original 用于后续查找所有同名变量
-                return `<span id="${spanId}" class="prompt-var-highlight" data-original="${varName}">${match}</span>`;
-            });
-            promptContainer.innerHTML = highlightedHtml;
-
-            // B. 生成 iOS 风格的变量输入列表
+            // A. 安全构建高亮 Prompt（避免 innerHTML 注入）
+            promptContainer.innerHTML = '';
             varsContainer.innerHTML = '';
             const uniqueVars = new Set();
+            let cursor = 0;
 
             matches.forEach(match => {
+                const start = match.index || 0;
+                const fullMatch = match[0] || '';
                 const varName = match[1].trim();
+
+                if (start > cursor) {
+                    promptContainer.appendChild(document.createTextNode(window.rawPrompt.slice(cursor, start)));
+                }
+
+                const span = document.createElement('span');
+                span.className = 'prompt-var-highlight';
+                span.setAttribute('data-original', varName);
+                span.textContent = `{{${varName}}}`;
+                promptContainer.appendChild(span);
+                cursor = start + fullMatch.length;
+
                 // 去重：如果同一个变量出现多次，只生成一个输入框
                 if (!uniqueVars.has(varName)) {
                     uniqueVars.add(varName);
@@ -69,16 +71,31 @@ window.showDetail = function(el) {
 
                     const div = document.createElement('div');
                     div.className = 'var-input-row animate-up'; // 使用 style.css 中定义的 iOS 风格样式
-                    div.innerHTML = `
-                        <div class="var-label" title="${varName}">${varName}</div>
-                        <input type="text" class="var-input"
-                               placeholder="Value"
-                               autocomplete="off"
-                               oninput="window.updateVar('${varName}', this.value)">
-                    `;
+
+                    const label = document.createElement('div');
+                    label.className = 'var-label';
+                    label.title = varName;
+                    label.textContent = varName;
+
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'var-input';
+                    input.placeholder = 'Value';
+                    input.autocomplete = 'off';
+                    input.addEventListener('input', function() {
+                        window.updateVar(varName, input.value);
+                    });
+
+                    div.appendChild(label);
+                    div.appendChild(input);
                     varsContainer.appendChild(div);
                 }
             });
+
+            if (cursor < window.rawPrompt.length) {
+                promptContainer.appendChild(document.createTextNode(window.rawPrompt.slice(cursor)));
+            }
+
             varsSection.classList.remove('d-none');
         } else {
             // 没有变量：直接显示纯文本，隐藏输入区
@@ -210,8 +227,9 @@ function renderOtherDetails(data) {
 window.updateVar = function(name, value) {
     window.currentVars[name] = value;
 
-    // 查找所有关联这个变量名的 span
-    const spans = document.querySelectorAll(`span[data-original="${name}"]`);
+    // 查找所有关联这个变量名的 span（避免 CSS 选择器注入）
+    const spans = Array.from(document.querySelectorAll('span[data-original]'))
+        .filter(span => span.getAttribute('data-original') === name);
     spans.forEach(span => {
         if (value && value.trim() !== '') {
             // 用户输入了值：显示值，去除下划线/特殊样式，使其看起来像普通文本但保留高亮色
@@ -229,14 +247,12 @@ window.copyModalPrompt = function() {
     let textToCopy = window.rawPrompt;
 
     // 执行最终替换：将 {{key}} 替换为用户输入的值
-    if (PROMPT_VAR_REGEX.test(textToCopy)) {
-        textToCopy = textToCopy.replace(PROMPT_VAR_REGEX, (match, p1) => {
-            const varName = p1.trim();
-            const userValue = window.currentVars[varName];
-            // 策略：如果用户填了值就替换，没填就保留 {{key}} 方便后续手动处理
-            return userValue ? userValue : match;
-        });
-    }
+    textToCopy = textToCopy.replace(/\{\{(.*?)\}\}/g, (match, p1) => {
+        const varName = p1.trim();
+        const userValue = window.currentVars[varName];
+        // 策略：如果用户填了值就替换，没填就保留 {{key}} 方便后续手动处理
+        return userValue ? userValue : match;
+    });
 
     const btn = document.getElementById('btnCopyPrompt');
     const onSuccess = () => {

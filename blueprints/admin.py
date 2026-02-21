@@ -1,16 +1,52 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, Response, \
     stream_with_context, send_file, jsonify
-from flask_login import login_required
-from models import db, Image, Tag, ReferenceImage, SystemSetting
+from flask_login import login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from models import db, Image, Tag, ReferenceImage, SystemSetting, User
 from services.image_service import ImageService
 from services.data_service import DataService
+from services.config_service import ConfigService
 import json
 import time
 import zipfile
 import io
 import os
+import urllib.request
+from urllib.parse import urlparse, urljoin
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+# 版本信息
+VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'VERSION')
+GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/vioaki/Prompt-Manager/main/VERSION'
+
+
+def get_current_version():
+    """获取当前版本号"""
+    try:
+        with open(VERSION_FILE, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except Exception:
+        return 'unknown'
+
+
+def _as_bool(value):
+    """宽松布尔解析，兼容 JSON/Form 的字符串值。"""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _safe_next_url(next_url):
+    """只允许站内跳转，防止开放重定向。"""
+    if not next_url:
+        return None
+    host_url = request.host_url
+    ref_url = urlparse(host_url)
+    test_url = urlparse(urljoin(host_url, next_url))
+    if test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc:
+        return next_url
+    return None
 
 
 @bp.route('/')
@@ -59,6 +95,12 @@ def dashboard():
     allow_sensitive_toggle = SystemSetting.get_bool('allow_sensitive_toggle', default=True)
     current_app.config['ALLOW_PUBLIC_SENSITIVE_TOGGLE'] = allow_sensitive_toggle
 
+    upload_settings = ConfigService.get_upload_settings()
+    display_settings = ConfigService.get_display_settings()
+    rate_limit_settings = ConfigService.get_rate_limit_settings()
+    readonly_settings = ConfigService.get_readonly_settings()
+    current_version = get_current_version()
+
     return render_template('admin.html',
                            pending_images=pending_images,
                            approved_pagination=approved_pagination,
@@ -67,7 +109,12 @@ def dashboard():
                            all_tags=all_tags,
                            stats=stats,
                            approval_settings=approval_settings,
-                           allow_sensitive_toggle=allow_sensitive_toggle)
+                           allow_sensitive_toggle=allow_sensitive_toggle,
+                           upload_settings=upload_settings,
+                           display_settings=display_settings,
+                           rate_limit_settings=rate_limit_settings,
+                           readonly_settings=readonly_settings,
+                           current_version=current_version)
 
 
 @bp.route('/approve/<int:img_id>', methods=['POST'])
@@ -111,8 +158,9 @@ def delete(img_id):
     else:
         flash('删除失败：找不到图片')
 
-    next_url = request.args.get('next')
-    if next_url: return redirect(next_url)
+    next_url = _safe_next_url(request.form.get('next') or request.args.get('next'))
+    if next_url:
+        return redirect(next_url)
     return redirect(url_for('admin.dashboard'))
 
 
@@ -140,8 +188,9 @@ def edit_image(img_id):
         except Exception as e:
             flash(f'保存失败: {e}')
 
-        next_url = request.form.get('next')
-        if next_url: return redirect(next_url)
+        next_url = _safe_next_url(request.form.get('next'))
+        if next_url:
+            return redirect(next_url)
         return redirect(url_for('admin.dashboard', tab='approved' if img.status == 'approved' else 'pending'))
 
     next_url = request.args.get('next')
@@ -229,11 +278,23 @@ def export_zip():
 def update_tag():
     """标签管理：重命名与敏感设置"""
     is_json = request.is_json
-    data = request.get_json() if is_json else request.form
+    data = request.get_json(silent=True) if is_json else request.form
 
     tag_id = data.get('tag_id')
     new_name = data.get('new_name', '').strip()
     is_sensitive = data.get('is_sensitive')
+
+    if tag_id is None:
+        message = '缺少 tag_id 参数'
+        return (jsonify({'status': 'error', 'message': message}), 400) if is_json else redirect(
+            url_for('admin.dashboard'))
+
+    try:
+        tag_id_int = int(tag_id)
+    except (TypeError, ValueError):
+        message = 'tag_id 参数格式无效'
+        return (jsonify({'status': 'error', 'message': message}), 400) if is_json else redirect(
+            url_for('admin.dashboard'))
 
     # 兼容 Form 表单的 Checkbox
     if not is_json and 'is_sensitive' in request.form:
@@ -241,7 +302,7 @@ def update_tag():
     elif not is_json:
         is_sensitive = False
 
-    tag = db.session.get(Tag, int(tag_id))
+    tag = db.session.get(Tag, tag_id_int)
     if not tag:
         return (jsonify({'status': 'error'}), 404) if is_json else redirect(url_for('admin.dashboard'))
 
@@ -263,8 +324,19 @@ def update_tag():
             tag.name = new_name
         db.session.commit()
 
+    _clean_orphaned_tags()
+
     if is_json: return jsonify({'status': 'ok'})
     return redirect(url_for('admin.dashboard'))
+
+
+def _clean_orphaned_tags():
+    """清理没有关联图片的空标签"""
+    orphaned = Tag.query.filter(~Tag.images.any()).all()
+    for tag in orphaned:
+        db.session.delete(tag)
+    if orphaned:
+        db.session.commit()
 
 
 @bp.route('/setting/global', methods=['POST'])
@@ -299,11 +371,184 @@ def update_global_setting():
     return redirect(url_for('admin.dashboard', tab='data-mgmt'))
 
 
+@bp.route('/setting/upload', methods=['POST'])
+@login_required
+def update_upload_setting():
+    """上传配置：图片处理相关设置（热更新）"""
+    is_json = request.is_json
+    data = request.get_json(silent=True) if is_json else request.form
+
+    try:
+        if 'img_max_dimension' in data:
+            ConfigService.set_img_max_dimension(data.get('img_max_dimension'))
+
+        if 'img_quality' in data:
+            ConfigService.set_img_quality(data.get('img_quality'))
+
+        if 'enable_img_compress' in data:
+            val = data.get('enable_img_compress')
+            if is_json:
+                ConfigService.set_enable_img_compress(_as_bool(val))
+            else:
+                ConfigService.set_enable_img_compress('enable_img_compress' in request.form)
+
+        if 'max_ref_images' in data:
+            ConfigService.set_max_ref_images(data.get('max_ref_images'))
+
+        if is_json:
+            return jsonify({'status': 'ok', 'data': ConfigService.get_upload_settings()})
+        flash('上传配置已更新')
+    except Exception as e:
+        if is_json:
+            return jsonify({'status': 'error', 'message': str(e)}), 400
+        flash(f'保存失败: {e}')
+
+    return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+
+@bp.route('/setting/display', methods=['POST'])
+@login_required
+def update_display_setting():
+    """显示配置：分页和预览相关设置（热更新）"""
+    is_json = request.is_json
+    data = request.get_json(silent=True) if is_json else request.form
+
+    try:
+        if 'items_per_page' in data:
+            ConfigService.set_items_per_page(data.get('items_per_page'))
+
+        if 'admin_per_page' in data:
+            ConfigService.set_admin_per_page(data.get('admin_per_page'))
+
+        if 'use_thumbnail_in_preview' in data:
+            val = data.get('use_thumbnail_in_preview')
+            if is_json:
+                ConfigService.set_use_thumbnail_in_preview(_as_bool(val))
+            else:
+                ConfigService.set_use_thumbnail_in_preview('use_thumbnail_in_preview' in request.form)
+
+        if is_json:
+            return jsonify({'status': 'ok', 'data': ConfigService.get_display_settings()})
+        flash('显示配置已更新')
+    except Exception as e:
+        if is_json:
+            return jsonify({'status': 'error', 'message': str(e)}), 400
+        flash(f'保存失败: {e}')
+
+    return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+
+@bp.route('/setting/ratelimit', methods=['POST'])
+@login_required
+def update_ratelimit_setting():
+    """限流配置：上传/登录限流（热更新）"""
+    is_json = request.is_json
+    data = request.get_json(silent=True) if is_json else request.form
+
+    try:
+        if 'upload_rate_limit' in data:
+            ConfigService.set_upload_rate_limit(data.get('upload_rate_limit'))
+
+        if 'login_rate_limit' in data:
+            ConfigService.set_login_rate_limit(data.get('login_rate_limit'))
+
+        if is_json:
+            return jsonify({'status': 'ok', 'data': ConfigService.get_rate_limit_settings()})
+        flash('限流配置已更新')
+    except Exception as e:
+        if is_json:
+            return jsonify({'status': 'error', 'message': str(e)}), 400
+        flash(f'保存失败: {e}')
+
+    return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+
+@bp.route('/setting/password', methods=['POST'])
+@login_required
+def update_password():
+    """修改当前管理员密码"""
+    is_json = request.is_json
+    data = request.get_json(silent=True) if is_json else request.form
+
+    old_password = data.get('old_password', '')
+    new_password = data.get('new_password', '')
+    confirm_password = data.get('confirm_password', '')
+
+    if not old_password or not new_password:
+        msg = '请填写完整的密码信息'
+        if is_json:
+            return jsonify({'status': 'error', 'message': msg}), 400
+        flash(msg)
+        return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+    if new_password != confirm_password:
+        msg = '两次输入的新密码不一致'
+        if is_json:
+            return jsonify({'status': 'error', 'message': msg}), 400
+        flash(msg)
+        return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+    if len(new_password) < 6:
+        msg = '新密码长度至少为6位'
+        if is_json:
+            return jsonify({'status': 'error', 'message': msg}), 400
+        flash(msg)
+        return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+    user = db.session.get(User, current_user.id)
+    if not user or not check_password_hash(user.password_hash, old_password):
+        msg = '当前密码错误'
+        if is_json:
+            return jsonify({'status': 'error', 'message': msg}), 400
+        flash(msg)
+        return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+    user.password_hash = generate_password_hash(new_password)
+    db.session.commit()
+
+    if is_json:
+        return jsonify({'status': 'ok', 'message': '密码修改成功'})
+    flash('密码修改成功')
+    return redirect(url_for('admin.dashboard', tab='data-mgmt'))
+
+
+@bp.route('/check-update', methods=['GET'])
+@login_required
+def check_update():
+    """检查 GitHub 远程版本"""
+    current = get_current_version()
+
+    try:
+        req = urllib.request.Request(GITHUB_VERSION_URL, headers={'User-Agent': 'Prompt-Manager'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            latest = response.read().decode('utf-8').strip()
+
+        def parse_version(v):
+            try:
+                return tuple(map(int, v.replace('v', '').split('.')))
+            except Exception:
+                return (0,)
+
+        has_update = parse_version(latest) > parse_version(current)
+        return jsonify({
+            'status': 'ok',
+            'current': current,
+            'latest': latest,
+            'has_update': has_update
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'current': current,
+            'message': f'检查更新失败: {str(e)}'
+        })
+
+
 @bp.route('/batch/delete', methods=['POST'])
 @login_required
 def batch_delete():
     """批量删除图片"""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     img_ids = data.get('image_ids', [])
 
     if not img_ids:
@@ -329,13 +574,15 @@ def batch_delete():
 @login_required
 def batch_modify_tags():
     """批量修改标签"""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     img_ids = data.get('image_ids', [])
     tag_ids = data.get('tag_ids', [])
     action = data.get('action', 'add')  # 'add' 或 'remove'
 
     if not img_ids or not tag_ids:
         return jsonify({'status': 'error', 'message': '缺少必要参数'}), 400
+    if action not in ('add', 'remove'):
+        return jsonify({'status': 'error', 'message': '无效的操作类型'}), 400
 
     try:
         # 获取标签对象
@@ -368,8 +615,8 @@ def batch_modify_tags():
         action_text = '添加' if action == 'add' else '删除'
         return jsonify({
             'status': 'ok',
-            'modified': len(img_ids),
-            'message': f'成功为 {len(img_ids)} 张图片{action_text}标签'
+            'modified': modified_count,
+            'message': f'成功为 {len(img_ids)} 张图片{action_text}标签（共变更 {modified_count} 项）'
         })
     except Exception as e:
         db.session.rollback()

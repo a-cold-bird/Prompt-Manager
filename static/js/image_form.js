@@ -318,7 +318,11 @@ document.addEventListener('DOMContentLoaded', function() {
         tags.forEach((tag, index) => {
             const span = document.createElement('span');
             span.className = 'tag-pill';
-            span.innerHTML = `${tag} <i class="bi bi-x-lg" data-idx="${index}"></i>`;
+            span.appendChild(document.createTextNode(`${tag} `));
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-x-lg';
+            icon.setAttribute('data-idx', String(index));
+            span.appendChild(icon);
             tagContainer.insertBefore(span, tagInput);
         });
         realTagsInput.value = tags.join(',');

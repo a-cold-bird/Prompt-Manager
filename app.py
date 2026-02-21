@@ -8,7 +8,7 @@ from flask_login import current_user
 from config import Config
 from extensions import db, login_manager, csrf, migrate, limiter
 from models import User
-from utils import ensure_local_resources
+from utils import ensure_local_resources, cleanup_pending_deletions
 
 
 def create_app(config_class=Config):
@@ -36,6 +36,8 @@ def create_app(config_class=Config):
 
     # 检查静态资源
     with app.app_context():
+        apply_dynamic_config(app)
+        cleanup_pending_deletions(app)
         ensure_local_resources(app)
 
     # 配置登录
@@ -65,10 +67,19 @@ def configure_logging(app):
     if not app.debug and not app.testing:
         if not os.path.exists('logs'):
             os.mkdir('logs')
-        file_handler = RotatingFileHandler('logs/prompt_manager.log', maxBytes=10240, backupCount=10)
-        file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-        file_handler.setLevel(logging.INFO)
-        app.logger.addHandler(file_handler)
+        log_file = os.path.abspath('logs/prompt_manager.log')
+        has_same_handler = any(
+            hasattr(h, 'baseFilename') and os.path.abspath(getattr(h, 'baseFilename', '')) == log_file
+            for h in app.logger.handlers
+        )
+        if not has_same_handler:
+            if os.name == 'nt':
+                file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            else:
+                file_handler = RotatingFileHandler(log_file, maxBytes=10240, backupCount=10)
+            file_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+            file_handler.setLevel(logging.INFO)
+            app.logger.addHandler(file_handler)
         app.logger.setLevel(logging.INFO)
         app.logger.info('Prompt Manager startup')
 
@@ -98,6 +109,26 @@ def register_commands(app):
             print(f"✅ 管理员创建成功: {admin_user}")
         else:
             print(f"ℹ️ 管理员 {admin_user} 已存在")
+
+
+def apply_dynamic_config(app):
+    """将数据库中的热更新配置同步到 app.config（应用启动时）。"""
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        from services.config_service import ConfigService
+        if not sa_inspect(db.engine).has_table('system_setting'):
+            return
+        app.config['IMG_MAX_DIMENSION'] = ConfigService.get_img_max_dimension()
+        app.config['IMG_QUALITY'] = ConfigService.get_img_quality()
+        app.config['ENABLE_IMG_COMPRESS'] = ConfigService.get_enable_img_compress()
+        app.config['MAX_REF_IMAGES'] = ConfigService.get_max_ref_images()
+        app.config['ITEMS_PER_PAGE'] = ConfigService.get_items_per_page()
+        app.config['ADMIN_PER_PAGE'] = ConfigService.get_admin_per_page()
+        app.config['USE_THUMBNAIL_IN_PREVIEW'] = ConfigService.get_use_thumbnail_in_preview()
+        app.config['UPLOAD_RATE_LIMIT'] = ConfigService.get_upload_rate_limit()
+        app.config['LOGIN_RATE_LIMIT'] = ConfigService.get_login_rate_limit()
+    except Exception as e:
+        app.logger.warning(f"Dynamic config load skipped: {e}")
 
 
 app = create_app()

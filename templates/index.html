@@ -313,7 +313,7 @@
 <script>
 (function() {
     const searchInput = document.querySelector('input[name="q"]');
-    const searchForm = document.querySelector('form[method="get"][action*="endpoint"]');
+    const searchForm = searchInput ? searchInput.closest('form') : null;
 
     if (!searchInput || !searchForm) return;
 

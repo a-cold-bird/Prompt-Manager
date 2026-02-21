@@ -1,8 +1,11 @@
-from flask import Blueprint, render_template, request, current_app, url_for, jsonify
+import hashlib
+import json
+import time
+from flask import Blueprint, render_template, request, current_app, url_for, jsonify, make_response
 from flask_login import current_user
 from sqlalchemy.sql.expression import func
 from models import db, Image, Tag, SystemSetting
-from extensions import limiter
+from extensions import limiter, csrf
 from services.image_service import ImageService
 
 bp = Blueprint('public', __name__)
@@ -157,59 +160,125 @@ def about():
 
 def _get_api_data(category_filter):
     """
-    API 通用查询逻辑 (Internal Helper)
+    API 通用查询逻辑
     :param category_filter: 'gallery' 或 'template'
 
-    默认返回所有数据（不分页）。可通过参数切换：
-    - ?all=1 或不传参数：返回所有数据
-    - ?page=X&per_page=Y：启用分页
+    对齐源项目策略：
+    1) 默认分页：未传 per_page 时默认 500 条
+    2) per_page=-1: 放宽到硬上限 10000
+    3) 返回 code/message/meta/data，并保留 legacy 字段兼容旧客户端
+    4) 支持 ETag + 304
     """
-    # 基础查询：只看已发布的
+    # 参数解析
+    page = max(1, request.args.get('page', 1, type=int))
+    raw_per_page = request.args.get('per_page', type=int)
+    search_query = request.args.get('q', '').strip()
+    tag_filter = request.args.get('tag', '').strip()
+    sort_by = request.args.get('sort', 'date')
+    type_filter = request.args.get('type', '').strip()
+    show_sensitive = can_see_sensitive()
+
+    HARD_LIMIT = 10000
+    DEFAULT_LIMIT = 500
+
+    if raw_per_page == -1:
+        per_page = HARD_LIMIT
+    elif raw_per_page is None:
+        per_page = DEFAULT_LIMIT
+    else:
+        per_page = min(max(raw_per_page, 1), HARD_LIMIT)
+
+    # 基础查询
     query = Image.query.filter_by(status='approved')
 
-    # 强制分类筛选
     if category_filter:
         query = query.filter_by(category=category_filter)
 
-    # 排序：默认按时间倒序
-    query = query.order_by(Image.created_at.desc())
+    if not show_sensitive:
+        query = query.filter(~Image.tags.any(Tag.is_sensitive == True))
 
-    # 检查是否需要分页
-    use_pagination = request.args.get('page') or request.args.get('per_page')
+    if type_filter == 'text2img':
+        type_filter = 'txt2img'
 
-    if use_pagination:
-        # 用户明确指定了分页参数，则启用分页
-        page = request.args.get('page', 1, type=int)
-        per_page = min(request.args.get('per_page', 20, type=int), 100)
-        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    if type_filter in ['txt2img', 'img2img']:
+        query = query.filter_by(type=type_filter)
 
-        return {
-            'current_page': page,
-            'pages': pagination.pages,
-            'total': pagination.total,
-            'data': [img.to_dict() for img in pagination.items]
-        }
+    if search_query:
+        query = query.filter(
+            Image.title.contains(search_query) |
+            Image.prompt.contains(search_query) |
+            Image.author.contains(search_query)
+        )
+
+    if tag_filter:
+        query = query.filter(Image.tags.any(name=tag_filter))
+
+    if sort_by == 'hot':
+        query = query.order_by(Image.heat_score.desc(), Image.created_at.desc())
+    elif sort_by == 'random':
+        query = query.order_by(func.random())
     else:
-        # 默认返回所有数据（无分页）
-        all_items = query.all()
-        return {
-            'current_page': 1,
-            'pages': 1,
-            'total': len(all_items),
-            'data': [img.to_dict() for img in all_items]
-        }
+        query = query.order_by(Image.created_at.desc())
+
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    items_data = [img.to_dict() for img in pagination.items]
+
+    response_payload = {
+        'code': 200,
+        'message': 'success',
+        'meta': {
+            'page': page,
+            'per_page': per_page,
+            'total_items': pagination.total,
+            'total_pages': pagination.pages,
+            'has_next': pagination.has_next,
+            'next_url': url_for(
+                request.endpoint,
+                page=pagination.next_num,
+                per_page=per_page,
+                q=search_query,
+                tag=tag_filter,
+                sort=sort_by,
+                type=type_filter,
+                _external=True
+            ) if pagination.has_next else None,
+            'server_timestamp': int(time.time())
+        },
+        # legacy 兼容字段
+        'current_page': page,
+        'pages': pagination.pages,
+        'total': pagination.total,
+        'data': items_data
+    }
+
+    json_str = json.dumps(response_payload, sort_keys=True, ensure_ascii=False)
+    etag_payload = dict(response_payload)
+    etag_meta = dict(response_payload.get('meta', {}))
+    etag_meta.pop('server_timestamp', None)
+    etag_payload['meta'] = etag_meta
+    etag_source = json.dumps(etag_payload, sort_keys=True, ensure_ascii=False)
+    etag_value = hashlib.md5(etag_source.encode('utf-8')).hexdigest()
+
+    if request.if_none_match and request.if_none_match.contains(etag_value):
+        return make_response('', 304)
+
+    response = make_response(json_str)
+    response.headers['Content-Type'] = 'application/json'
+    response.set_etag(etag_value)
+    response.headers['Cache-Control'] = 'public, max-age=60'
+    return response
 
 
 @bp.route('/api/gallery')
 def api_gallery_list():
     """获取画廊数据 (JSON)"""
-    return jsonify(_get_api_data('gallery'))
+    return _get_api_data('gallery')
 
 
 @bp.route('/api/templates')
 def api_templates_list():
     """获取模板数据 (JSON)"""
-    return jsonify(_get_api_data('template'))
+    return _get_api_data('template')
 
 
 @bp.route('/api/stats/view/<int:img_id>', methods=['POST'])
@@ -232,3 +301,46 @@ def stat_copy(img_id):
         img.heat_score = img.views_count * 1 + img.copies_count * 10
         db.session.commit()
     return {'status': 'ok'}
+
+
+@bp.route('/api/upload', methods=['POST'])
+@csrf.exempt
+@limiter.limit(lambda: current_app.config['UPLOAD_RATE_LIMIT'])
+def api_upload():
+    """开放式 API 上传接口（multipart/form-data）"""
+    file = request.files.get('image')
+    if not file or not file.filename:
+        return jsonify({'code': 400, 'message': '缺少主图文件', 'data': None}), 400
+
+    title = request.form.get('title', '').strip()
+    if not title:
+        return jsonify({'code': 400, 'message': '缺少标题', 'data': None}), 400
+
+    category = request.form.get('category', 'gallery')
+    if category == 'template':
+        need_approval = SystemSetting.get_bool('approval_template', default=True)
+    else:
+        category = 'gallery'
+        need_approval = SystemSetting.get_bool('approval_gallery', default=True)
+
+    initial_status = 'pending' if need_approval else 'approved'
+
+    try:
+        form_data = request.form.to_dict()
+        form_data['status'] = initial_status
+        form_data['category'] = category
+
+        new_image = ImageService.create_image(
+            file=file,
+            data=form_data,
+            ref_files=request.files.getlist('ref_images')
+        )
+
+        return jsonify({
+            'code': 201,
+            'message': '上传成功' if initial_status == 'approved' else '上传成功，等待审核',
+            'data': new_image.to_dict()
+        }), 201
+    except Exception as e:
+        current_app.logger.error(f"API Upload Error: {e}")
+        return jsonify({'code': 500, 'message': f'上传失败: {str(e)}', 'data': None}), 500

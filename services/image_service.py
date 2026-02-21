@@ -26,10 +26,11 @@ class ImageService:
                 status=data.get('status', 'pending')
             )
 
+            db.session.add(image)
+
             if data.get('tags'):
                 ImageService._apply_tags(image, data.get('tags'))
 
-            db.session.add(image)
             db.session.flush()
 
             if image.type == 'img2img':
@@ -56,54 +57,65 @@ class ImageService:
         if not image:
             raise ValueError("Image not found")
 
-        # 基础信息
-        image.title = data.get('title')
-        image.author = data.get('author')
-        image.prompt = data.get('prompt')
-        image.description = data.get('description')
-        image.type = data.get('type')
-        image.category = data.get('category')
-        image.status = data.get('status')
-
+        old_files_to_remove = []
+        files_to_cleanup_on_error = []
         upload_folder = current_app.config['UPLOAD_FOLDER']
 
-        # 替换主图
-        if new_main_file and new_main_file.filename:
-            old_files = [image.file_path, image.thumbnail_path]
-            web_path, thumb_path, lqip_data = process_image(new_main_file, upload_folder)
-            image.file_path = web_path
-            image.thumbnail_path = thumb_path
-            image.lqip_data = lqip_data  # 新增：更新 LQIP 数据
+        try:
+            # 基础信息
+            image.title = data.get('title')
+            image.author = data.get('author')
+            image.prompt = data.get('prompt')
+            image.description = data.get('description')
+            image.type = data.get('type')
+            image.category = data.get('category')
+            image.status = data.get('status')
 
-            for p in old_files:
+            # 替换主图
+            if new_main_file and new_main_file.filename:
+                old_files_to_remove.extend([image.file_path, image.thumbnail_path])
+                web_path, thumb_path, lqip_data = process_image(new_main_file, upload_folder)
+                files_to_cleanup_on_error.extend([web_path, thumb_path])
+                image.file_path = web_path
+                image.thumbnail_path = thumb_path
+                image.lqip_data = lqip_data
+
+            # 更新标签
+            if 'tags' in data:
+                image.tags = []
+                ImageService._apply_tags(image, data['tags'])
+
+            # 删除参考图（数据库先删，物理文件提交后再删）
+            if deleted_ref_ids:
+                for ref_id in deleted_ref_ids:
+                    if not ref_id:
+                        continue
+                    ref = db.session.get(ReferenceImage, int(ref_id))
+                    if ref and ref.image_id == image.id:
+                        if ref.file_path:
+                            old_files_to_remove.append(ref.file_path)
+                        db.session.delete(ref)
+                db.session.flush()
+
+            # 处理参考图布局
+            ref_layout_str = data.get('ref_layout')
+            if ref_layout_str:
+                ImageService._process_layout_refs(image, ref_layout_str, new_ref_files)
+            else:
+                max_pos = db.session.query(db.func.max(ReferenceImage.position)).filter_by(image_id=image.id).scalar() or 0
+                if new_ref_files:
+                    ImageService._process_refs(image, new_ref_files, start_pos=max_pos + 1)
+
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            for p in files_to_cleanup_on_error:
                 remove_physical_file(p)
+            raise
 
-        # 更新标签
-        if 'tags' in data:
-            image.tags = []
-            ImageService._apply_tags(image, data['tags'])
+        for p in old_files_to_remove:
+            remove_physical_file(p)
 
-        # 删除参考图
-        if deleted_ref_ids:
-            for ref_id in deleted_ref_ids:
-                if not ref_id: continue
-                ref = db.session.get(ReferenceImage, int(ref_id))
-                if ref and ref.image_id == image.id:
-                    if ref.file_path:
-                        remove_physical_file(ref.file_path)
-                    db.session.delete(ref)
-            db.session.flush()
-
-        # 处理参考图布局
-        ref_layout_str = data.get('ref_layout')
-        if ref_layout_str:
-            ImageService._process_layout_refs(image, ref_layout_str, new_ref_files)
-        else:
-            max_pos = db.session.query(db.func.max(ReferenceImage.position)).filter_by(image_id=image.id).scalar() or 0
-            if new_ref_files:
-                ImageService._process_refs(image, new_ref_files, start_pos=max_pos + 1)
-
-        db.session.commit()
         return image
 
     @staticmethod
