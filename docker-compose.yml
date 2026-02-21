@@ -1,6 +1,22 @@
-version: '3.8'
-
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: prompt-manager-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-prompt_manager}
+      POSTGRES_USER: ${POSTGRES_USER:-prompt_manager}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prompt_manager}
+      TZ: Asia/Shanghai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prompt_manager} -d ${POSTGRES_DB:-prompt_manager}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   web:
     build:
       context: .
@@ -11,13 +27,16 @@ services:
     env_file: .env
 
     environment:
-      DATABASE_URL: sqlite:////app/instance/data.sqlite
+      DATABASE_URL: ${APP_DATABASE_URL:-postgresql+psycopg2://prompt_manager:prompt_manager@db:5432/prompt_manager}
       GUNICORN_WORKERS: "2"
       GUNICORN_THREADS: "4"
       GUNICORN_BIND: 0.0.0.0:5000
       GUNICORN_LOG_LEVEL: info
       LOG_TO_FILE: "false"
       TZ: Asia/Shanghai
+    depends_on:
+      db:
+        condition: service_healthy
 
     ports:
       - "5000:5000"
@@ -44,3 +63,5 @@ services:
 
     stop_grace_period: 20s
 
+volumes:
+  pgdata:

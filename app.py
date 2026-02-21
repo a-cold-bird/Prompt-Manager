@@ -37,6 +37,7 @@ def create_app(config_class=Config):
 
     # 检查静态资源
     with app.app_context():
+        ensure_query_indexes(app)
         apply_dynamic_config(app)
         cleanup_pending_deletions(app)
         ensure_local_resources(app)
@@ -100,6 +101,7 @@ def register_commands(app):
     def init_db_command():
         """初始化数据库和管理员账户"""
         db.create_all()
+        ensure_query_indexes(app)
         admin_user = app.config['ADMIN_USERNAME']
         admin_pass = app.config['ADMIN_PASSWORD']
 
@@ -110,6 +112,35 @@ def register_commands(app):
             print(f"[OK] Admin user created: {admin_user}")
         else:
             print(f"[INFO] Admin user already exists: {admin_user}")
+
+
+def ensure_query_indexes(app):
+    """Ensure query-critical indexes exist for both SQLite and PostgreSQL."""
+    from sqlalchemy import text, inspect as sa_inspect
+
+    statements = [
+        "CREATE INDEX IF NOT EXISTS ix_image_created_at ON image (created_at)",
+        "CREATE INDEX IF NOT EXISTS ix_image_status_category_created_at ON image (status, category, created_at)",
+        "CREATE INDEX IF NOT EXISTS ix_image_status_category_heat_created_at ON image (status, category, heat_score, created_at)",
+        "CREATE INDEX IF NOT EXISTS ix_image_status_category_type_created_at ON image (status, category, type, created_at)",
+        "CREATE INDEX IF NOT EXISTS ix_image_tags_image_id ON image_tags (image_id)",
+        "CREATE INDEX IF NOT EXISTS ix_image_tags_tag_id ON image_tags (tag_id)",
+        "CREATE INDEX IF NOT EXISTS ix_image_tags_tag_image ON image_tags (tag_id, image_id)",
+        "CREATE INDEX IF NOT EXISTS ix_reference_image_image_id ON reference_image (image_id)",
+        "CREATE INDEX IF NOT EXISTS ix_reference_image_image_position ON reference_image (image_id, position)",
+    ]
+
+    try:
+        inspector = sa_inspect(db.engine)
+        required_tables = ('image', 'image_tags', 'reference_image')
+        if not all(inspector.has_table(t) for t in required_tables):
+            return
+
+        with db.engine.begin() as conn:
+            for stmt in statements:
+                conn.execute(text(stmt))
+    except Exception as e:
+        app.logger.warning(f"Ensure indexes skipped: {e}")
 
 
 def apply_dynamic_config(app):

@@ -3,10 +3,14 @@ from datetime import datetime
 from extensions import db
 from flask import request
 
-image_tags = db.Table('image_tags',
-                      db.Column('image_id', db.Integer, db.ForeignKey('image.id')),
-                      db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'))
-                      )
+image_tags = db.Table(
+    'image_tags',
+    db.Column('image_id', db.Integer, db.ForeignKey('image.id'), nullable=False),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), nullable=False),
+    db.Index('ix_image_tags_image_id', 'image_id'),
+    db.Index('ix_image_tags_tag_id', 'tag_id'),
+    db.Index('ix_image_tags_tag_image', 'tag_id', 'image_id'),
+)
 
 
 class User(UserMixin, db.Model):
@@ -82,6 +86,12 @@ class SystemSetting(db.Model):
 
 class Image(db.Model):
     """核心作品模型"""
+    __table_args__ = (
+        db.Index('ix_image_status_category_created_at', 'status', 'category', 'created_at'),
+        db.Index('ix_image_status_category_heat_created_at', 'status', 'category', 'heat_score', 'created_at'),
+        db.Index('ix_image_status_category_type_created_at', 'status', 'category', 'type', 'created_at'),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(255), nullable=False)
     author = db.Column(db.String(50), default='匿名')
@@ -92,7 +102,7 @@ class Image(db.Model):
     description = db.Column(db.Text)
     type = db.Column(db.String(50))  # txt2img / img2img
     status = db.Column(db.String(20), default='pending', index=True)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
 
     # 作品分类: gallery / template
     category = db.Column(db.String(20), default='gallery', index=True)
@@ -177,8 +187,12 @@ class Image(db.Model):
 
 class ReferenceImage(db.Model):
     """参考图模型"""
+    __table_args__ = (
+        db.Index('ix_reference_image_image_position', 'image_id', 'position'),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
-    image_id = db.Column(db.Integer, db.ForeignKey('image.id'), nullable=False)
+    image_id = db.Column(db.Integer, db.ForeignKey('image.id'), nullable=False, index=True)
     file_path = db.Column(db.String(255), nullable=True)
     position = db.Column(db.Integer, default=0)
     is_placeholder = db.Column(db.Boolean, default=False)
