@@ -14,6 +14,7 @@ from utils import ensure_local_resources, cleanup_pending_deletions
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    os.makedirs(app.instance_path, exist_ok=True)
 
     # 修复 Flask 3.0+ JSON 中文显示
     app.json.ensure_ascii = False
@@ -106,9 +107,9 @@ def register_commands(app):
             admin = User(username=admin_user, password_hash=generate_password_hash(admin_pass))
             db.session.add(admin)
             db.session.commit()
-            print(f"✅ 管理员创建成功: {admin_user}")
+            print(f"[OK] Admin user created: {admin_user}")
         else:
-            print(f"ℹ️ 管理员 {admin_user} 已存在")
+            print(f"[INFO] Admin user already exists: {admin_user}")
 
 
 def apply_dynamic_config(app):

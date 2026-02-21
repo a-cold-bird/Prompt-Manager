@@ -18,15 +18,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制项目文件
 COPY . .
 
-# 复制环境文件示例（如果 .env 不存在）
-COPY .env.example .env.example
-
 # 创建必要的目录
 RUN mkdir -p instance static/uploads static/thumbnails logs
 
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=app.py
+ENV DATABASE_URL=sqlite:////app/instance/data.sqlite
 
 # 暴露端口
 EXPOSE 5000
@@ -35,12 +33,10 @@ EXPOSE 5000
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
-# 检查并初始化数据库\n\
-if [ ! -f instance/data.sqlite ]; then\n\
-  echo "[INFO] 初始化数据库..."\n\
-  flask init-db\n\
-  echo "[OK] 数据库初始化完成"\n\
-fi\n\
+# 初始化数据库（幂等）并确保管理员账户存在\n\
+echo "[INFO] Running database initialization..."\n\
+python -m flask init-db\n\
+echo "[OK] Database initialization finished"\n\
 \n\
 # 启动应用\n\
 exec gunicorn \\\n\

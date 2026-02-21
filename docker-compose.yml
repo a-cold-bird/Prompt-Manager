@@ -11,6 +11,7 @@ services:
     env_file: .env
 
     environment:
+      DATABASE_URL: sqlite:////app/instance/data.sqlite
       GUNICORN_WORKERS: "2"
       GUNICORN_THREADS: "4"
       GUNICORN_BIND: 0.0.0.0:5000

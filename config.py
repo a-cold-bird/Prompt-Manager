@@ -14,7 +14,7 @@ class Config:
 
     # 数据库配置
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-                              'sqlite:///' + os.path.join(basedir, 'data.sqlite')
+                              'sqlite:///' + os.path.join(basedir, 'instance', 'data.sqlite')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # 文件上传配置
